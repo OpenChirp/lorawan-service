@@ -50,6 +50,8 @@ func main() {
 	if !ok {
 		log.Fatalf("Failed to detect LoRa App Server Target URI\n")
 	}
+	appServerAppID := properties["AppServerApplicationID"]
+
 	a := NewAppServer(appServerTarget)
 	a.Login(properties["AppServerUser"], properties["AppServerPass"])
 	a.Connect()
@@ -57,26 +59,27 @@ func main() {
 	a.GetUsers()
 	fmt.Println("Done")
 
-	/* In order bring up this service without missing any device configuration
+	/* In order to bring up this service without missing any device configuration
 	 * changes, we must carefully consider the startup order. The following
 	 * comments will explain the the necessary startup order and what queuing
 	 * must happen during each step:
 	 */
 
 	/* The first order of business is to fetch the current registered devices
-	 * on the lora-app-server and import them as devices and configuration.
+	 * on the lora-app-server and import them as devices and their respective
+	 * service config.
 	 */
 
 	/* Next, we will subscribe to the OpenChirp service news topic and queue
-	 * updates that we are sent
+	 * updates that we receive.
 	 */
 
-	/* We then will fetch the static configuration from the OpenChirp
+	/* We will then fetch the static configuration from the OpenChirp
 	 * framework server and resolve discrepancies with the config from the
-	 * lora-app-server
+	 * lora-app-server.
 	 */
 
 	/* Finally, we start processing updates from the OpenChirp service news
-	 * topic and pushing discrepancies to the lora-app-server
+	 * topic and resolving discrepancies with the lora-app-server.
 	 */
 }
