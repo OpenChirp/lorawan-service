@@ -125,7 +125,44 @@ func (a *AppServer) GetUsers() {
 	}
 }
 
-func (a *AppServer) Add() {
+func (a *AppServer) GetNodes(appid int64) []*pb.GetNodeResponse {
+	req := &pb.ListNodeByApplicationIDRequest{ApplicationID: appid, Limit: 200000000, Offset: 0}
+	nodes, err := a.Node.ListByApplicationID(context.Background(), req)
+	if err != nil {
+		log.Fatalf("Failed to get list of nodes: %v", err)
+	}
+	return nodes.GetResult()
+}
+
+func (a *AppServer) AddNode(appid int64) {
+	/* Example CreateNodeRequest
+	applicationID:"4"
+	name:"Test"
+	description:"Testing"
+	devEUI:"1122334455667788"
+	appEUI:"1122334455667788"
+	appKey:"11223344556677881122334455667788"
+	useApplicationSettings: true,
+	adrInterval:0
+	installationMargin:0
+	isABP:false
+	isClassC:false
+	relaxFCnt:false
+	rx1DROffset:0
+	rx2DR:0
+	rxDelay:0
+	rxWindow:"RX1"
+	*/
+	req := &pb.CreateNodeRequest{
+		ApplicationID: appid,
+		DevEUI:        "0",
+		AppEUI:        "0",
+		AppKey:        "0",
+	}
+	_, err := a.Node.Create(context.Background(), req)
+	if err != nil {
+		log.Fatalf("Failed to create node: %v", err)
+	}
 }
 
 /* Interfaces for gRPC Metadata */
