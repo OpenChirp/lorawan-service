@@ -94,7 +94,7 @@ func (a *AppServer) Connect() {
 	})), grpc.WithPerRPCCredentials(&authMeta{a.jwt})}
 
 	// Set up a connection to the server.
-	a.conn, err = grpc.Dial(address, grpcDialOpts...)
+	a.conn, err = grpc.Dial(a.addr, grpcDialOpts...)
 	if err != nil {
 		log.Fatalf("Failed to connect: %v", err)
 	}
