@@ -6,11 +6,62 @@ import (
 	"fmt"
 	"log"
 
+	"errors"
+
+	"strconv"
+
+	"strings"
+
+	"math"
+
 	pb "github.com/openchirp/lorawan/api"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
+
+const (
+	requestLimit = 2000000
+)
+
+var ErrInvalidParameterSize = errors.New("A parameter given has an invalid size")
+
+// isValidHex indicates if value is a proper hex strings that can be contained
+// with the given number of bits
+func isValidHex(value string, bits int) bool {
+	str := strings.ToLower(value)
+	precZeros := true
+	bitcount := 0
+	for _, c := range str {
+		// Ensure the rune is a HEX character
+		if !strings.Contains("0123456789abcdef", string(c)) {
+			return false
+		}
+		// Ensure that we are within the given bit size
+		if precZeros {
+			value, err := strconv.ParseInt(string(c), 16, 8)
+			if err != nil {
+				// This is unclear how this could ever error out
+				fmt.Println("err on parse")
+				return false
+			}
+			// Add in variable number of bits for first HEX char
+			if value == 0 {
+				continue
+			} else {
+				precZeros = false
+			}
+			bitcount += int(math.Ceil(math.Log2(float64(value + 1))))
+		} else {
+			// Add in a nibble
+			bitcount += 4
+		}
+		if bitcount > bits {
+			return false
+		}
+	}
+	return true
+}
 
 type AppServer struct {
 	addr string
@@ -114,7 +165,11 @@ func (a *AppServer) Disconnect() error {
 }
 
 func (a *AppServer) GetUsers() {
-	users, err := a.User.List(context.Background(), &pb.ListUserRequest{Limit: 2000000000, Offset: 0})
+	req := &pb.ListUserRequest{
+		Limit:  requestLimit,
+		Offset: 0,
+	}
+	users, err := a.User.List(context.Background(), req)
 	if err != nil {
 		log.Fatalf("Failed to get list of users: %v", err)
 	}
@@ -125,8 +180,12 @@ func (a *AppServer) GetUsers() {
 	}
 }
 
-func (a *AppServer) GetNodes(appid int64) []*pb.GetNodeResponse {
-	req := &pb.ListNodeByApplicationIDRequest{ApplicationID: appid, Limit: 200000000, Offset: 0}
+func (a *AppServer) ListNodes(AppID int64) []*pb.GetNodeResponse {
+	req := &pb.ListNodeByApplicationIDRequest{
+		ApplicationID: AppID,
+		Limit:         requestLimit,
+		Offset:        0,
+	}
 	nodes, err := a.Node.ListByApplicationID(context.Background(), req)
 	if err != nil {
 		log.Fatalf("Failed to get list of nodes: %v", err)
@@ -134,7 +193,7 @@ func (a *AppServer) GetNodes(appid int64) []*pb.GetNodeResponse {
 	return nodes.GetResult()
 }
 
-func (a *AppServer) AddNode(appid int64) {
+func (a *AppServer) CreateNode(AppID int64, DevEUI, AppEUI, AppKey, Description string) error {
 	/* Example CreateNodeRequest
 	applicationID:"4"
 	name:"Test"
@@ -153,16 +212,37 @@ func (a *AppServer) AddNode(appid int64) {
 	rxDelay:0
 	rxWindow:"RX1"
 	*/
+	if _, err := strconv.ParseUint(DevEUI, 16, 64); err != nil {
+		fmt.Printf("%v\n", err)
+		return ErrInvalidParameterSize
+	}
+	if _, err := strconv.ParseUint(AppEUI, 16, 64); err != nil {
+		fmt.Printf("%v\n", err)
+		return ErrInvalidParameterSize
+	}
+	if !isValidHex(AppKey, 128) {
+		return ErrInvalidParameterSize
+	}
 	req := &pb.CreateNodeRequest{
-		ApplicationID: appid,
-		DevEUI:        "0",
-		AppEUI:        "0",
-		AppKey:        "0",
+		ApplicationID:          AppID,
+		DevEUI:                 DevEUI,
+		AppEUI:                 AppEUI,
+		AppKey:                 AppKey,
+		UseApplicationSettings: true,
+		// Name will be populated with DevEUI
+		Description: Description,
 	}
 	_, err := a.Node.Create(context.Background(), req)
-	if err != nil {
-		log.Fatalf("Failed to create node: %v", err)
+	return err
+}
+
+// DeleteNode will request to delete a node on the app server
+func (a *AppServer) DeleteNode(DevEUI string) error {
+	req := &pb.DeleteNodeRequest{
+		DevEUI: DevEUI,
 	}
+	_, err := a.Node.Delete(context.Background(), req)
+	return err
 }
 
 /* Interfaces for gRPC Metadata */
