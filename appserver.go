@@ -14,6 +14,10 @@ import (
 
 	"math"
 
+	"encoding/json"
+
+	"encoding/base64"
+
 	pb "github.com/openchirp/lorawan/api"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -180,17 +184,14 @@ func (a *AppServer) GetUsers() {
 	}
 }
 
-func (a *AppServer) ListNodes(AppID int64) []*pb.GetNodeResponse {
+func (a *AppServer) ListNodes(AppID int64) ([]*pb.GetNodeResponse, error) {
 	req := &pb.ListNodeByApplicationIDRequest{
 		ApplicationID: AppID,
 		Limit:         requestLimit,
 		Offset:        0,
 	}
 	nodes, err := a.Node.ListByApplicationID(context.Background(), req)
-	if err != nil {
-		log.Fatalf("Failed to get list of nodes: %v", err)
-	}
-	return nodes.GetResult()
+	return nodes.GetResult(), err
 }
 
 func (a *AppServer) CreateNode(AppID int64, DevEUI, AppEUI, AppKey, Description string) error {
@@ -212,17 +213,16 @@ func (a *AppServer) CreateNode(AppID int64, DevEUI, AppEUI, AppKey, Description 
 	rxDelay:0
 	rxWindow:"RX1"
 	*/
-	if _, err := strconv.ParseUint(DevEUI, 16, 64); err != nil {
-		fmt.Printf("%v\n", err)
+	if !isValidHex(DevEUI, 64) {
 		return ErrInvalidParameterSize
 	}
-	if _, err := strconv.ParseUint(AppEUI, 16, 64); err != nil {
-		fmt.Printf("%v\n", err)
+	if !isValidHex(AppEUI, 64) {
 		return ErrInvalidParameterSize
 	}
 	if !isValidHex(AppKey, 128) {
 		return ErrInvalidParameterSize
 	}
+	fmt.Printf("Create: \"%s\" - \"%s\" - \"%s\"\n", DevEUI, AppEUI, AppKey)
 	req := &pb.CreateNodeRequest{
 		ApplicationID:          AppID,
 		DevEUI:                 DevEUI,
@@ -243,6 +243,27 @@ func (a *AppServer) DeleteNode(DevEUI string) error {
 	}
 	_, err := a.Node.Delete(context.Background(), req)
 	return err
+}
+
+func DownlinkMessage(DevEUI string, data []byte) []byte {
+	req := pb.DownlinkQueueItem{
+		DevEUI:    DevEUI,
+		Data:      data,
+		Confirmed: false,
+		FPort:     1,
+	}
+	payload, _ := json.Marshal(req)
+	return payload
+}
+
+type UplinkMessage struct {
+	Data []byte `json:"data"`
+}
+
+func UplinkMessageDecode(payload []byte) []byte {
+	var msg UplinkMessage
+	json.Unmarshal(payload, &msg)
+	return []byte(base64.StdEncoding.EncodeToString(msg.Data))
 }
 
 /* Interfaces for gRPC Metadata */
