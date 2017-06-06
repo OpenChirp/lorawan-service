@@ -25,7 +25,9 @@ import (
 )
 
 const (
-	requestLimit = 2000000
+	requestLimit             = 2000000
+	defaultFport             = 2
+	defaultConfirmedDownlink = false
 )
 
 var ErrInvalidParameterSize = errors.New("A parameter given has an invalid size")
@@ -249,8 +251,8 @@ func DownlinkMessage(DevEUI string, data []byte) []byte {
 	req := pb.DownlinkQueueItem{
 		DevEUI:    DevEUI,
 		Data:      data,
-		Confirmed: false,
-		FPort:     1,
+		Confirmed: defaultConfirmedDownlink,
+		FPort:     defaultFport,
 	}
 	payload, _ := json.Marshal(req)
 	return payload
