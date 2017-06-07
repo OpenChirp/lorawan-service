@@ -10,8 +10,14 @@ import (
 
 	"log"
 
+	"time"
+
 	"github.com/openchirp/framework"
 	"github.com/openchirp/framework/rest"
+)
+
+const (
+	appServerJWTRefreshTime = time.Minute * time.Duration(60)
 )
 
 const (
@@ -183,6 +189,12 @@ func main() {
 				}
 
 				log.Printf("Added device %s with DevEUI %s\n", update.Id, dev.DevEUI)
+			}
+		case <-time.After(appServerJWTRefreshTime):
+			s.std.Println("Reconnecting to app server")
+			err := s.ReLoginAppServer()
+			if err != nil {
+				s.err.Fatalf("Failed to relogin the app server: %v\n", err)
 			}
 		case <-signals:
 			goto shutdown

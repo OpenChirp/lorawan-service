@@ -70,7 +70,8 @@ func isValidHex(value string, bits int) bool {
 }
 
 type AppServer struct {
-	addr string
+	addr       string
+	user, pass string
 	// Out auth JWT
 	jwt  string
 	conn *grpc.ClientConn
@@ -90,8 +91,10 @@ func NewAppServer(address string) AppServer {
 
 // Login authenticates with the lora app server and obtains the JWT for
 // the session
-func (a *AppServer) Login(username, password string) {
-	loginRequest := &pb.LoginRequest{Username: username, Password: password}
+func (a *AppServer) Login(username, password string) error {
+	a.user = username
+	a.pass = password
+	loginRequest := &pb.LoginRequest{Username: a.user, Password: a.pass}
 
 	cp, err := x509.SystemCertPool()
 	if err != nil {
@@ -108,18 +111,19 @@ func (a *AppServer) Login(username, password string) {
 	// Set up a connection to the server.
 	conn, err := grpc.Dial(a.addr, grpcDialOpts...)
 	if err != nil {
-		log.Fatalf("Could not connect to app server to login: %v\n", err)
+		return err
 	}
 	defer conn.Close()
 
 	login := pb.NewInternalClient(conn)
 	loginResponse, err := login.Login(context.Background(), loginRequest)
 	if err != nil {
-		log.Fatalf("Failed to issue the login RPC: %v\n", err)
+		return err
 	}
 	log.Printf("Got the JWT: %s\n", loginResponse.Jwt)
 
 	a.jwt = loginResponse.Jwt
+	return nil
 }
 
 // SetJWT simply sets the JWT for the session
@@ -127,11 +131,11 @@ func (a *AppServer) SetJWT(jwt string) {
 	a.jwt = jwt
 }
 
-func (a *AppServer) Connect() {
+func (a *AppServer) Connect() error {
 
 	cp, err := x509.SystemCertPool()
 	if err != nil {
-		log.Fatal("Failed to get root CA certificates")
+		return errors.New("Failed to get root CA certificates")
 	}
 
 	// b, err := ioutil.ReadFile("fullchain.pem")
@@ -153,7 +157,7 @@ func (a *AppServer) Connect() {
 	// Set up a connection to the server.
 	a.conn, err = grpc.Dial(a.addr, grpcDialOpts...)
 	if err != nil {
-		log.Fatalf("Failed to connect: %v", err)
+		return err
 	}
 
 	a.User = pb.NewUserClient(a.conn)
@@ -164,10 +168,23 @@ func (a *AppServer) Connect() {
 	a.DownlinkQueue = pb.NewDownlinkQueueClient(a.conn)
 	a.Application = pb.NewApplicationClient(a.conn)
 	log.Println("Connected")
+	return nil
 }
 
 func (a *AppServer) Disconnect() error {
 	return a.conn.Close()
+}
+
+func (a *AppServer) ReLogin() error {
+	err := a.Disconnect()
+	if err != nil {
+		return err
+	}
+	err = a.Login(a.user, a.pass)
+	if err != nil {
+		return err
+	}
+	return a.Connect()
 }
 
 func (a *AppServer) GetUsers() {

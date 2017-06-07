@@ -87,8 +87,14 @@ func StartLorawanService(hosturi, serviceid, user, pass string) *LorawanService 
 	appUser := s.service.GetProperty("AppServerUser")
 	appPass := s.service.GetProperty("AppServerPass")
 	s.std.Printf("Connecting to lora app server as %s:%s\n", appUser, appPass)
-	s.app.Login(appUser, appPass)
-	s.app.Connect()
+	err = s.app.Login(appUser, appPass)
+	if err != nil {
+		s.err.Fatalf("Failed Login to App Server: %v\n", err)
+	}
+	err = s.app.Connect()
+	if err != nil {
+		s.err.Fatalf("Failed Connect to App Server: %v\n", err)
+	}
 
 	/* Setup other runtime variable */
 	s.devices = make(map[string]DeviceConfig)
@@ -312,4 +318,8 @@ func (s *LorawanService) SyncSequence() {
 			s.err.Printf("Failed to link device data: %v\n", err)
 		}
 	}
+}
+
+func (s *LorawanService) ReLoginAppServer() error {
+	return s.app.ReLogin()
 }
