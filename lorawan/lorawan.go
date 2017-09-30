@@ -198,44 +198,55 @@ func (l *Manager) Sync(configs []DeviceConfig) error {
 				chosenConfigIsClassC = true
 			}
 
-			if chosenConfig.AppEUI != appNode.AppEUI ||
-				chosenConfig.AppKey != appNode.AppKey ||
-				chosenConfig.Name != appNodes.Name ||
-				chosenConfig.Class.String() != appNodeClass {
-
-				// Needs a full refresh - session key will be wiped
+			if errs := chosenConfig.CheckParameters(); len(errs) > 0 {
+				l.log.Infof("Device ID \"%s\" failed parameter check, so it will be deleted and not re-added: %s", errs)
 				err = l.app.DeleteNode(chosenConfig.DevEUI)
 				if err != nil {
 					// RUNTIME ERROR ON INIT - NOT GOOD
 					return fmt.Errorf("Failed delete node from app server with DevEUI \"%s\": %v", chosenConfig.DevEUI, err)
 				}
-				err = l.app.CreateNodeWithClass(
-					l.appID,
-					chosenConfig.DevEUI,
-					chosenConfig.AppEUI,
-					chosenConfig.AppKey,
-					chosenConfig.ID,
-					chosenConfig.GetDescription(),
-					chosenConfigIsClassC,
-				)
+				l.configStatusFailed(chosenConfig, errs)
+			} else {
+				if chosenConfig.AppEUI != appNode.AppEUI ||
+					chosenConfig.AppKey != appNode.AppKey ||
+					chosenConfig.Name != appNodes.Name ||
+					chosenConfig.Class.String() != appNodeClass {
+
+					// Needs a full refresh - session key will be wiped
+					err = l.app.DeleteNode(chosenConfig.DevEUI)
+					if err != nil {
+						// RUNTIME ERROR ON INIT - NOT GOOD
+						return fmt.Errorf("Failed delete node from app server with DevEUI \"%s\": %v", chosenConfig.DevEUI, err)
+					}
+
+					err = l.app.CreateNodeWithClass(
+						l.appID,
+						chosenConfig.DevEUI,
+						chosenConfig.AppEUI,
+						chosenConfig.AppKey,
+						chosenConfig.ID,
+						chosenConfig.GetDescription(),
+						chosenConfigIsClassC,
+					)
+					if err != nil {
+						// RUNTIME ERROR ON INIT - NOT GOOD
+						return fmt.Errorf("Failed create node on app server with DevEUI \"%s\" and ID \"\": ", chosenConfig.DevEUI, chosenConfig.ID, err)
+					}
+				} else if chosenConfig.GetDescription() != appNode.Description {
+					// Simply update the description on the app server: %v", chosen
+					err = l.app.UpdateNodeDescription(chosenConfig.DevEUI, chosenConfig.GetDescription())
+					if err != nil {
+						return fmt.Errorf("Failed update description of node on app server with DevEUI \"%s\": %v", chosenConfig.DevEUI, err)
+					}
+				}
+
+				err := l.addBridge(chosenConfig)
 				if err != nil {
 					// RUNTIME ERROR ON INIT - NOT GOOD
-					return fmt.Errorf("Failed create node on app server with DevEUI \"%s\" and ID \"\": ", chosenConfig.DevEUI, chosenConfig.ID, err)
+					return fmt.Errorf("Failed to link data streams for node with ID \"%s\": %v", chosenConfig.ID, err)
 				}
-			} else if chosenConfig.GetDescription() != appNode.Description {
-				// Simply update the description on the app server: %v", chosen
-				err = l.app.UpdateNodeDescription(chosenConfig.DevEUI, chosenConfig.GetDescription())
-				if err != nil {
-					return fmt.Errorf("Failed update description of node on app server with DevEUI \"%s\": %v", chosenConfig.DevEUI, err)
-				}
+				l.configStatusOk(chosenConfig)
 			}
-
-			err := l.addBridge(chosenConfig)
-			if err != nil {
-				// RUNTIME ERROR ON INIT - NOT GOOD
-				return fmt.Errorf("Failed to link data streams for node with ID \"%s\": %v", chosenConfig.ID, err)
-			}
-			l.configStatusOk(chosenConfig)
 
 			// send bad status to not chosenIndex
 			for i, c := range devConfigs {
