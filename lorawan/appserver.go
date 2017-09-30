@@ -28,11 +28,7 @@ const (
 	requestLimit             = 2000000
 	defaultFport             = 2
 	defaultConfirmedDownlink = false
-)evices[n.DevEUI] = LorawanDeviceConfig{
-	// 	DevEUI: n.DevEUI,
-	// 	AppEUI: n.AppEUI,
-	// 	AppKey: n.AppKey,
-	// }
+)
 
 var ErrInvalidParameterSize = errors.New("A parameter given has an invalid size")
 
@@ -300,9 +296,9 @@ func (a *AppServer) CreateNodeWithClass(AppID int64, DevEUI, AppEUI, AppKey, Nam
 		AppEUI:                 AppEUI,
 		AppKey:                 AppKey,
 		UseApplicationSettings: false,
-		IsClassC: IsClassC,
-		Name:        Name,
-		Description: Description,
+		IsClassC:               IsClassC,
+		Name:                   Name,
+		Description:            Description,
 	}
 	_, err := a.Node.Create(context.Background(), req)
 	return err
