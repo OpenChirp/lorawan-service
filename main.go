@@ -191,12 +191,12 @@ func run(ctx *cli.Context) error {
 		configs = append(configs, devconfig)
 	}
 
-	err = c.SetStatus("Synchonizing initial registered devices and app server")
+	err = c.SetStatus("Synchronizing initial registered devices and app server")
 	if err != nil {
 		log.Fatal("Failed to publish service status: ", err)
 		return cli.NewExitError(nil, 1)
 	}
-	log.Debug("Synchonizing initial registered devices and app server")
+	log.Debug("Synchronizing initial registered devices and app server")
 
 	err = lwManager.Sync(configs)
 	if err != nil {
