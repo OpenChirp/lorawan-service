@@ -129,11 +129,6 @@ func run(ctx *cli.Context) error {
 
 	/* Launch LoRaWAN Service */
 
-	// appServerTarget := c.GetProperty("AppServerTarget")
-	// appUser := c.GetProperty("AppServerUser")
-	// appPass := c.GetProperty("AppServerPass")
-	// appAppId := c.GetProperty("AppServerApplicationID")
-
 	appServerTarget := ctx.String("app-grpc-server")
 	appServerUser := ctx.String("app-grpc-user")
 	appServerPass := ctx.String("app-grpc-pass")
@@ -274,32 +269,6 @@ func run(ctx *cli.Context) error {
 			case framework.DeviceUpdateTypeErr:
 				logitem.Errorf(update.Error())
 			}
-
-			// if update.Type == framework.DeviceUpdateTypeRem ||
-			// 	update.Type == framework.DeviceUpdateTypeUpd {
-			// 	logitem.Info("Removing device")
-			// 	if DevEUI, ok := devIdToDevEui[update.Id]; ok {
-			// 		// app.DeleteNode
-			// 		bridge.RemoveLinksAll(update.Id)
-			// 		delete(devIdToDevEui, update.Id)
-			// 	} else {
-			// 		logitem.Warnf("Tried to remove without it being registered")
-			// 	}
-			// }
-
-			// if update.Type == framework.DeviceUpdateTypeAdd ||
-			// 	update.Type == framework.DeviceUpdateTypeUpd {
-			// 	logitem.Info("Adding device")
-
-			// 	// If we need to make sure the device is
-
-			// 	if DevEUI, ok := devIdToDevEui[update.Id]; ok {
-			// 		// app.DeleteNode
-			// 	} else {
-			// 		bridge.RemoveLinksAll(update.Id)
-			// 		devIdToDevEui[update.Id] = nil
-			// 	}
-			// }
 
 		case <-time.After(appServerJWTRefreshTime):
 			log.Debug("Reconnecting to app server")
