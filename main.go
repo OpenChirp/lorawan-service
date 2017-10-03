@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/openchirp/framework"
 	"github.com/openchirp/framework/pubsub"
+	"github.com/openchirp/lorawan-service/lorawan"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
@@ -16,6 +18,7 @@ import (
 const (
 	runningStatus           = true
 	appServerJWTRefreshTime = time.Minute * time.Duration(60)
+	version                 = "2.0"
 )
 
 const (
@@ -23,7 +26,58 @@ const (
 	configDevEUI             = "DevEUI"
 	configAppEUI             = "AppEUI"
 	configAppKey             = "AppKey"
+	configClass              = "Class"
 )
+
+const (
+	defaultLorawanClass = lorawan.LorawanClassA
+)
+
+type DeviceUpdateAdapter struct {
+	framework.DeviceUpdate
+}
+
+func (update DeviceUpdateAdapter) GetDevEUI() string {
+	return update.Config[configDevEUI]
+}
+
+func (update DeviceUpdateAdapter) GetAppEUI() string {
+	return update.Config[configAppEUI]
+}
+
+func (update DeviceUpdateAdapter) GetAppKey() string {
+	return update.Config[configAppKey]
+}
+
+func (update DeviceUpdateAdapter) GetClass() lorawan.LorawanClass {
+	classStr := update.Config[configClass]
+	class := lorawan.LorawanClassFromString(classStr)
+	if classStr == "" {
+		class = defaultLorawanClass
+	}
+	return class
+}
+
+func (update DeviceUpdateAdapter) GetLorawanDeviceConfig(c *framework.ServiceClient) (lorawan.DeviceConfig, error) {
+	var err error
+	var config lorawan.DeviceConfig
+
+	info, err := c.FetchDeviceInfo(update.Id)
+	if err != nil {
+		return config, fmt.Errorf("Deviceid \"%s\" was deleted before we could fetch it's config. Skipping.", update.Id)
+	}
+	config.ID = update.Id
+	config.Topic = info.Pubsub.Topic + "/transducer"
+	config.Name = info.Name
+	config.Owner = info.Owner.Email
+
+	config.DevEUI = update.GetDevEUI()
+	config.AppEUI = update.GetAppEUI()
+	config.AppKey = update.GetAppKey()
+	config.Class = update.GetClass()
+
+	return config, nil
+}
 
 func run(ctx *cli.Context) error {
 
@@ -74,9 +128,6 @@ func run(ctx *cli.Context) error {
 	defer appMqtt.Disconnect()
 
 	/* Launch LoRaWAN Service */
-	var lorawan LorawanManager
-	lorawan.bridge = pubsub.NewBridge(c, appMqtt, log)
-	devIdToDevEui := make(map[string]string)
 
 	// appServerTarget := c.GetProperty("AppServerTarget")
 	// appUser := c.GetProperty("AppServerUser")
@@ -88,7 +139,7 @@ func run(ctx *cli.Context) error {
 	appServerPass := ctx.String("app-grpc-pass")
 	appAppId := ctx.Int64("app-appid")
 
-	lorawan.app = NewAppServer(appServerTarget)
+	app := lorawan.NewAppServer(appServerTarget)
 	log.Debugf("Connecting to lora app server as %s:%s\n", appServerUser, appServerPass)
 	if err := app.Login(appServerUser, appServerPass); err != nil {
 		log.Fatalf("Failed Login to App Server: %v\n", err)
@@ -97,6 +148,19 @@ func run(ctx *cli.Context) error {
 		log.Fatalf("Failed Connect to App Server: %v\n", err)
 	}
 	defer app.Disconnect()
+
+	lwManager := lorawan.NewManager(
+		pubsub.NewBridge(c, appMqtt, log),
+		app,
+		appAppId,
+		func(config lorawan.DeviceConfig, str string) {
+			err := c.SetDeviceStatus(config.ID, str)
+			if err != nil {
+				log.Errorf("Failed to publish status for deviceid \"%s\": %v", config.ID, err)
+			}
+		},
+		log,
+	)
 
 	/* Start service main device updates stream */
 
@@ -117,45 +181,35 @@ func run(ctx *cli.Context) error {
 		return cli.NewExitError(nil, 1)
 	}
 
-	// fetch initial app server configs
-	log.Debug("Fetching lora app server initial configs")
-	appNodes, err := app.ListNodes(appAppId)
-	if err != nil {
-		log.Error("Failed to fetch app server initial configs: ", err)
-		return cli.NewExitError(nil, 1)
+	// sync
+
+	// Since we could fail to fetch info for a device, we need to leave the
+	// possibility of less DeviceConfig being created
+	configs := make([]lorawan.DeviceConfig, 0, len(configUpdates))
+	for i := range configUpdates {
+		devconfig, err := DeviceUpdateAdapter{configUpdates[i]}.GetLorawanDeviceConfig(c)
+		if err != nil {
+			// Had problem fetching device info
+			log.Info(err)
+			continue
+		}
+		configs = append(configs, devconfig)
 	}
 
-	for _, n := range appNodes {
-		n.DevEUI
-	}
-
-	/* Shooting down DevEUIs on App Server that do not exist anymore */
-	err = c.SetStatus("Shooting down orphaned DevEUIs")
+	err = c.SetStatus("Synchonizing initial registered devices and app server")
 	if err != nil {
 		log.Fatal("Failed to publish service status: ", err)
 		return cli.NewExitError(nil, 1)
 	}
-	log.Debug("Shooting down orphaned DevEUIs")
-	initialFwConfigs, err := c.FetchDeviceConfigs()
+	log.Debug("Synchonizing initial registered devices and app server")
+
+	err = lwManager.Sync(configs)
 	if err != nil {
-		log.Fatal("Failed to fetch initial configuration from framework: ", err)
+		log.Fatal(err)
 		return cli.NewExitError(nil, 1)
 	}
-	initialAppConfig, err := app.ListNodes(appAppId)
-	if err != nil {
-		log.Fatal("Failed to fetch initial configuration from App Server: ", err)
-		err = c.SetStatus("Failed to fetch initial configuration from App Server: ", err)
-		if err != nil {
-			log.Fatal("Failed to publish service status: ", err)
-		}
-		return cli.NewExitError(nil, 1)
-	}
-
-	// TODO: Delete DevEUIs on App Server that don't exist anymore
-
-	// We don't need anymore
-	initialFwConfigs = nil
-	initialAppConfig = nil
+	configs = nil
+	configUpdates = nil
 
 	/* Post service status indicating I started */
 	err = c.SetStatus("Started")
@@ -189,36 +243,63 @@ func run(ctx *cli.Context) error {
 				"deviceid": update.Id,
 			})
 
-			/*
-			 1. Shoot down DevEUIs that don't exist anymore
-			 2.
-			*/
-
-			if update.Type == framework.DeviceUpdateTypeRem ||
-				update.Type == framework.DeviceUpdateTypeUpd {
-				logitem.Info("Removing device")
-				if DevEUI, ok := devIdToDevEui[update.Id]; ok {
-					// app.DeleteNode
-					bridge.RemoveLinksAll(update.Id)
-					delete(devIdToDevEui, update.Id)
-				} else {
-					logitem.Warnf("Tried to remove without it being registered")
+			switch update.Type {
+			case framework.DeviceUpdateTypeAdd:
+				logitem.Debug("Fetching device info")
+				devconfig, err := DeviceUpdateAdapter{update}.GetLorawanDeviceConfig(c)
+				if err != nil {
+					// Had problem fetching device info
+					logitem.Info(err)
+					continue
 				}
+				lwManager.ProcessAdd(devconfig)
+			case framework.DeviceUpdateTypeRem:
+				logitem.Debug("Fetching device info")
+				devconfig, err := DeviceUpdateAdapter{update}.GetLorawanDeviceConfig(c)
+				if err != nil {
+					// Had problem fetching device info
+					logitem.Info(err)
+					continue
+				}
+				lwManager.ProcessRemove(devconfig)
+			case framework.DeviceUpdateTypeUpd:
+				logitem.Debug("Fetching device info")
+				devconfig, err := DeviceUpdateAdapter{update}.GetLorawanDeviceConfig(c)
+				if err != nil {
+					// Had problem fetching device info
+					logitem.Info(err)
+					continue
+				}
+				lwManager.ProcessUpdate(devconfig)
+			case framework.DeviceUpdateTypeErr:
+				logitem.Errorf(update.Error())
 			}
 
-			if update.Type == framework.DeviceUpdateTypeAdd ||
-				update.Type == framework.DeviceUpdateTypeUpd {
-				logitem.Info("Adding device")
+			// if update.Type == framework.DeviceUpdateTypeRem ||
+			// 	update.Type == framework.DeviceUpdateTypeUpd {
+			// 	logitem.Info("Removing device")
+			// 	if DevEUI, ok := devIdToDevEui[update.Id]; ok {
+			// 		// app.DeleteNode
+			// 		bridge.RemoveLinksAll(update.Id)
+			// 		delete(devIdToDevEui, update.Id)
+			// 	} else {
+			// 		logitem.Warnf("Tried to remove without it being registered")
+			// 	}
+			// }
 
-				// If we need to make sure the device is
+			// if update.Type == framework.DeviceUpdateTypeAdd ||
+			// 	update.Type == framework.DeviceUpdateTypeUpd {
+			// 	logitem.Info("Adding device")
 
-				if DevEUI, ok := devIdToDevEui[update.Id]; ok {
-					// app.DeleteNode
-				} else {
-					bridge.RemoveLinksAll(update.Id)
-					devIdToDevEui[update.Id] = nil
-				}
-			}
+			// 	// If we need to make sure the device is
+
+			// 	if DevEUI, ok := devIdToDevEui[update.Id]; ok {
+			// 		// app.DeleteNode
+			// 	} else {
+			// 		bridge.RemoveLinksAll(update.Id)
+			// 		devIdToDevEui[update.Id] = nil
+			// 	}
+			// }
 
 		case <-time.After(appServerJWTRefreshTime):
 			log.Debug("Reconnecting to app server")
