@@ -304,49 +304,6 @@ func (a *AppServer) CreateNodeWithClass(AppID int64, DevEUI, AppEUI, AppKey, Nam
 	return err
 }
 
-// // UpdateNode was intended to update a node's info wothout crushing session keys
-// // but, I am not sure this is possible with updating all info
-// func (a *AppServer) UpdateNode(AppID int64, DevEUI, AppEUI, AppKey, Name, Description string, IsClassC bool) error {
-// 	/* Example CreateNodeRequest
-// 	applicationID:"4"
-// 	name:"Test"
-// 	description:"Testing"
-// 	devEUI:"1122334455667788"
-// 	appEUI:"1122334455667788"
-// 	appKey:"11223344556677881122334455667788"
-// 	useApplicationSettings: true,
-// 	adrInterval:0
-// 	installationMargin:0
-// 	isABP:false
-// 	isClassC:false
-// 	relaxFCnt:false
-// 	rx1DROffset:0
-// 	rx2DR:0
-// 	rxDelay:0
-// 	rxWindow:"RX1"
-// 	*/
-// 	if !isValidHex(DevEUI, 64) {
-// 		return ErrInvalidParameterSize
-// 	}
-// 	if !isValidHex(AppEUI, 64) {
-// 		return ErrInvalidParameterSize
-// 	}
-// 	if !isValidHex(AppKey, 128) {
-// 		return ErrInvalidParameterSize
-// 	}
-// 	fmt.Printf("Update: \"%s\" - \"%s\" - \"%s\"\n", DevEUI, AppEUI, AppKey)
-// 	req := &pb.UpdateNodeRequest{
-// 		DevEUI:      DevEUI,
-// 		AppEUI:      AppEUI,
-// 		AppKey:      AppKey,
-// 		IsClassC:    IsClassC,
-// 		Name:        Name,
-// 		Description: Description,
-// 	}
-// 	_, err := a.Node.Update(context.Background(), req)
-// 	return err
-// }
-
 // UpdateNode was intended to update a node's info wothout crushing session keys
 // but, I am not sure this is possible with updating all info
 func (a *AppServer) UpdateNodeDescription(DevEUI, Description string) error {
