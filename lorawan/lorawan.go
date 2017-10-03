@@ -1,6 +1,7 @@
 package lorawan
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -18,6 +19,7 @@ const (
 
 // StatusMsgAlreadyRegistered is followed by an OC Device ID
 var StatusMsgAlreadyRegistered = "DevEUI already registered to"
+var StatusMsgOk = "Successfully registered DevEUI"
 
 type LorawanClass int
 
@@ -83,6 +85,15 @@ func (d DeviceConfig) String() string {
 func (d DeviceConfig) CheckParameters() string {
 	// TODO: Implement parameter checking
 	// Should return message indicating problem if there is one
+	if len(d.DevEUI) != 16 {
+		return "Error - DevEUI must have 16 hex characters"
+	}
+	if len(d.AppEUI) != 16 {
+		return "Error - AppEUI must have 16 hex characters"
+	}
+	if len(d.AppKey) != 32 {
+		return "Error - AppKey must have 32 hex characters"
+	}
 	return ""
 }
 
@@ -93,7 +104,7 @@ func (d DeviceConfig) GetDescription() string {
 type DeviceConfigStatusUpdate func(config DeviceConfig, str string)
 
 type Manager struct {
-	bridge       pubsub.Bridge // A is OC, B is LoRa App Server
+	bridge       *pubsub.Bridge // A is OC, B is LoRa App Server
 	appID        int64
 	app          AppServer
 	configStatus DeviceConfigStatusUpdate
@@ -101,7 +112,7 @@ type Manager struct {
 }
 
 func NewManager(
-	bridge pubsub.Bridge,
+	bridge *pubsub.Bridge,
 	app AppServer,
 	appID int64,
 	configStatus DeviceConfigStatusUpdate,
@@ -125,13 +136,131 @@ func (l *Manager) configStatusConflict(conflicConfig DeviceConfig, chosenID stri
 	l.configStatus(conflicConfig, fmt.Sprintf("%s %s", StatusMsgAlreadyRegistered, chosenID))
 }
 
-func (l *Manager) addBridge(config DeviceConfig) error {
-	// TODO: Implement
+func (l *Manager) addBridge(d DeviceConfig) error {
+	logitem := l.log.WithField("deviceid", d.ID)
+
+	topicRawtx := d.Topic + "/transducer/rawtx"
+	topicTx := "application/" + fmt.Sprint(l.appID) + "/node/" + d.DevEUI + "/tx"
+	topicRx := "application/" + fmt.Sprint(l.appID) + "/node/" + d.DevEUI + "/rx"
+	topicRawrx := d.Topic + "/transducer/rawrx"
+
+	logitem.Debug("Adding fwd tx link")
+	err := l.bridge.AddFwd(
+		d.ID,
+		topicRawtx,
+		func(pubsubb pubsub.PubSub, topica string, payload []byte) error {
+			// we need to decode base64, so that the following marshaller can
+			// re-encode it as base64
+			data, err := base64.StdEncoding.DecodeString(string(payload))
+			if err != nil {
+				return err
+			}
+
+			return pubsubb.Publish(topicTx, DownlinkMessage(d.DevEUI, data))
+		})
+	if err != nil {
+		l.bridge.RemoveLinksAll(d.ID)
+		return err
+	}
+
+	logitem.Debug("Adding rev rx link")
+	err = l.bridge.AddRev(
+		d.ID,
+		topicRx,
+		func(pubsuba pubsub.PubSub, topicb string, payload []byte) error {
+			return pubsuba.Publish(topicRawrx, UplinkMessageDecode(payload))
+		})
+	if err != nil {
+		l.bridge.RemoveLinksAll(d.ID)
+		return err
+	}
 	return nil
 }
-func (l *Manager) remBridge(config DeviceConfig) error {
-	// TODO: Implement
-	return nil
+func (l *Manager) remBridge(d DeviceConfig) error {
+	logitem := l.log.WithField("deviceid", d.ID)
+	logitem.Debug("Removing link")
+	return l.bridge.RemoveLinksAll(d.ID)
+}
+
+// addOnly simply add the device to app server and creates brigde without any
+// checks of app server
+func (l *Manager) addOnly(deviceConfig DeviceConfig) {
+	logitem := l.log.WithField("deviceid", deviceConfig.ID).WithField("deveui", deviceConfig.DevEUI)
+
+	deviceConfigIsClassC := false
+	if deviceConfig.Class == LorawanClassC {
+		deviceConfigIsClassC = true
+	}
+
+	logitem.Debug("Checking parameters")
+	if errs := deviceConfig.CheckParameters(); errs != "" {
+		logitem.Warnf("Failed to add device: %s", errs)
+		l.configStatusFailed(deviceConfig, errs)
+		return
+	}
+
+	logitem.Debug("Creating Node on App Server")
+	err := l.app.CreateNodeWithClass(
+		l.appID,
+		deviceConfig.DevEUI,
+		deviceConfig.AppEUI,
+		deviceConfig.AppKey,
+		deviceConfig.ID,
+		deviceConfig.GetDescription(),
+		deviceConfigIsClassC,
+	)
+	if err != nil {
+		logitem.Errorf("Failed create node on app server: %v", err)
+		l.configStatusFailed(deviceConfig, "Failed - App server denied registration")
+		return
+	}
+
+	logitem.Debug("Adding data stream bridge")
+	err = l.addBridge(deviceConfig)
+	if err != nil {
+		logitem.Errorf("Failed to link data stream: %v", err)
+		l.configStatusFailed(deviceConfig, "Failed - Data stream bridge denied links")
+		return
+	}
+	l.configStatusOk(deviceConfig)
+}
+
+// updateDescriptionAndAddOnly simply updates the description on the app server
+// and add the device
+func (l *Manager) updateDescriptionAndAddOnly(deviceConfig DeviceConfig) {
+	logitem := l.log.WithField("deviceid", deviceConfig.ID).WithField("deveui", deviceConfig.DevEUI)
+
+	logitem.Debug("Updating Node Description on App Server")
+	// Simply update the description on the app server: %v", chosen
+	err := l.app.UpdateNodeDescription(deviceConfig.DevEUI, deviceConfig.GetDescription())
+	if err != nil {
+		logitem.Errorf("Failed update description of node on app server: %v", err)
+		l.configStatusFailed(deviceConfig, "Failed - App server denied registration")
+		return
+	}
+
+	logitem.Debug("Adding data stream bridge")
+	err = l.addBridge(deviceConfig)
+	if err != nil {
+		logitem.Errorf("Failed to link data stream: %v", err)
+		l.configStatusFailed(deviceConfig, "Failed - Data stream bridge denied links")
+		return
+	}
+	l.configStatusOk(deviceConfig)
+}
+
+// refreshAndAddOnly deletes the node on the app server and adds it using new config
+func (l *Manager) refreshAndAddOnly(deviceConfig DeviceConfig) {
+	logitem := l.log.WithField("deviceid", deviceConfig.ID).WithField("deveui", deviceConfig.DevEUI)
+
+	logitem.Debug("Deleting node from app server")
+	err := l.app.DeleteNode(deviceConfig.DevEUI)
+	if err != nil {
+		logitem.Errorf("Failed delete node from app server: %v", err)
+		return
+	}
+
+	l.addOnly(deviceConfig)
 }
 
 // Sync synchronizes the LoRa App server to the given device updates.
@@ -193,10 +322,10 @@ func (l *Manager) Sync(configs []DeviceConfig) error {
 			if appNode.IsClassC {
 				appNodeClass = "C"
 			}
-			chosenConfigIsClassC := false
-			if chosenConfig.Class == LorawanClassC {
-				chosenConfigIsClassC = true
-			}
+			// chosenConfigIsClassC := false
+			// if chosenConfig.Class == LorawanClassC {
+			// 	chosenConfigIsClassC = true
+			// }
 
 			if errs := chosenConfig.CheckParameters(); len(errs) > 0 {
 				l.log.Infof("Device ID \"%s\" failed parameter check, so it will be deleted and not re-added: %s", errs)
@@ -209,43 +338,16 @@ func (l *Manager) Sync(configs []DeviceConfig) error {
 			} else {
 				if chosenConfig.AppEUI != appNode.AppEUI ||
 					chosenConfig.AppKey != appNode.AppKey ||
-					chosenConfig.Name != appNodes.Name ||
+					chosenConfig.Name != appNode.Name ||
 					chosenConfig.Class.String() != appNodeClass {
 
-					// Needs a full refresh - session key will be wiped
-					err = l.app.DeleteNode(chosenConfig.DevEUI)
-					if err != nil {
-						// RUNTIME ERROR ON INIT - NOT GOOD
-						return fmt.Errorf("Failed delete node from app server with DevEUI \"%s\": %v", chosenConfig.DevEUI, err)
-					}
+					// Needs a full refresh and link - session key will be wiped
+					l.refreshAndAddOnly(chosenConfig)
 
-					err = l.app.CreateNodeWithClass(
-						l.appID,
-						chosenConfig.DevEUI,
-						chosenConfig.AppEUI,
-						chosenConfig.AppKey,
-						chosenConfig.ID,
-						chosenConfig.GetDescription(),
-						chosenConfigIsClassC,
-					)
-					if err != nil {
-						// RUNTIME ERROR ON INIT - NOT GOOD
-						return fmt.Errorf("Failed create node on app server with DevEUI \"%s\" and ID \"\": ", chosenConfig.DevEUI, chosenConfig.ID, err)
-					}
 				} else if chosenConfig.GetDescription() != appNode.Description {
-					// Simply update the description on the app server: %v", chosen
-					err = l.app.UpdateNodeDescription(chosenConfig.DevEUI, chosenConfig.GetDescription())
-					if err != nil {
-						return fmt.Errorf("Failed update description of node on app server with DevEUI \"%s\": %v", chosenConfig.DevEUI, err)
-					}
+					// Simply update the description on the app server and link
+					l.updateDescriptionAndAddOnly(chosenConfig)
 				}
-
-				err := l.addBridge(chosenConfig)
-				if err != nil {
-					// RUNTIME ERROR ON INIT - NOT GOOD
-					return fmt.Errorf("Failed to link data streams for node with ID \"%s\": %v", chosenConfig.ID, err)
-				}
-				l.configStatusOk(chosenConfig)
 			}
 
 			// send bad status to not chosenIndex
@@ -282,35 +384,7 @@ func (l *Manager) Sync(configs []DeviceConfig) error {
 		// Name        - Delete and Add (must have been under different ownership)
 		// Description - Simple Update (only thing that allows simple update)
 		chosenConfig := devConfigs[chosenIndex]
-		appNodeClass := "A"
-		if appNode.IsClassC {
-			appNodeClass = "C"
-		}
-		chosenConfigIsClassC := false
-		if chosenConfig.Class == LorawanClassC {
-			chosenConfigIsClassC = true
-		}
-
-		err = l.app.CreateNodeWithClass(
-			l.appID,
-			chosenConfig.DevEUI,
-			chosenConfig.AppEUI,
-			chosenConfig.AppKey,
-			chosenConfig.ID,
-			chosenConfig.GetDescription(),
-			chosenConfigIsClassC,
-		)
-		if err != nil {
-			// RUNTIME ERROR ON INIT - NOT GOOD
-			return fmt.Errorf("Failed create node on app server with DevEUI \"%s\" and ID \"\": ", chosenConfig.DevEUI, chosenConfig.ID, err)
-		}
-
-		err := l.addBridge(chosenConfig)
-		if err != nil {
-			// RUNTIME ERROR ON INIT - NOT GOOD
-			return fmt.Errorf("Failed to link data streams for node with ID \"%s\": %v", chosenConfig.ID, err)
-		}
-		l.configStatusOk(chosenConfig)
+		l.addOnly(chosenConfig)
 
 		// send bad status to not chosenIndex
 		for i, c := range devConfigs {
@@ -319,111 +393,21 @@ func (l *Manager) Sync(configs []DeviceConfig) error {
 			}
 		}
 
-		delete(devIDToConfigs, appNode.DevEUI)
+		delete(devIDToConfigs, chosenConfig.DevEUI)
 	}
-
-	// /* Next, we will subscribe to the OpenChirp service news topic and queue
-	//  * updates that we receive.
-	//  */
-	// l.log.Debugln("Start listening for framework events")
-	// s.events, err = s.service.StartDeviceUpdates()
-	// if err != nil {
-	// 	s.err.Fatalf("Failed to start framework events channel: %v\n", err)
-	// }
-
-	// /* We will then fetch the static configuration from the OpenChirp
-	//  * framework server and resolve discrepancies with the config from the
-	//  * lora-app-server.
-	//  */
-	// l.log.Debugln("Fetching device configurations from framework")
-	// devConfig, err := s.service.FetchDeviceConfigs()
-	// if err != nil {
-	// 	s.err.Fatalf("Failed to fetch initial device configs from framework server: %v\n", err)
-	// }
-	// // Add all static device configs to a map
-	// deviceConfigs := make(map[string]DeviceConfig)
-	// for _, d := range devConfig {
-	// 	// Map all key/value pairs
-	// 	config := Config2Map(d.Config)
-	// 	DevEUI, ok := config["DevEUI"]
-	// 	if !ok {
-	// 		s.err.Printf("Device %s did not specify a DevEUI - Skipping\n", d.Id)
-	// 		continue
-	// 	}
-	// 	AppEUI, ok := config["AppEUI"]
-	// 	if !ok {
-	// 		s.err.Printf("Device %s did not specify a AppEUI - Skipping\n", d.Id)
-	// 		continue
-	// 	}
-	// 	AppKey, ok := config["AppKey"]
-	// 	if !ok {
-	// 		s.err.Printf("Device %s did not specify a AppKey - Skipping\n", d.Id)
-	// 		continue
-	// 	}
-	// 	deviceConfigs[DevEUI] = DeviceConfig{
-	// 		ID:     d.Id,
-	// 		DevEUI: DevEUI,
-	// 		AppEUI: AppEUI,
-	// 		AppKey: AppKey,
-	// 	}
-	// }
-
-	// // 1. Delete devices that exist on lora app server and not in framework,
-	// //    delete devices whose configuration do not match, and fill in missing
-	// //    device fields(ID and Topic)
-	// for _, d := range s.devices {
-	// 	foundDevice, ok := deviceConfigs[d.DevEUI]
-	// 	if ok {
-	// 		// Check the current configuration
-	// 		if d.AppEUI == foundDevice.AppEUI && d.AppKey == foundDevice.AppKey {
-	// 			// config is good - remove from deviceConfigs map and update Id
-	// 			d.ID = foundDevice.ID
-	// 			// we still don't have the mqtt topic yet
-	// 			s.devices[d.DevEUI] = d
-	// 			delete(deviceConfigs, d.DevEUI)
-	// 			s.std.Printf("Config for device %s with DevEUI %s was up-to-date\n", d.ID, d.DevEUI)
-	// 			continue
-	// 		}
-	// 		s.std.Printf("Config for device %s with DevEUI %s was modified\n", d.ID, d.DevEUI)
-	// 	}
-	// 	// remove from lora app server
-	// 	err = s.app.DeleteNode(d.DevEUI)
-	// 	if err != nil {
-	// 		s.err.Printf("Failed to remove DevEUI %s from app server: %v\n", d.DevEUI, err)
-	// 	}
-	// 	s.std.Printf("Deleted device with DevEUI %s\n", d.DevEUI)
-	// }
-	// // 2. Add remaining devices to the app server
-	// for _, d := range deviceConfigs {
-	// 	if err := s.PullDeviceConfig(&d); err != nil {
-	// 		s.err.Printf("Failed to fetch device info from the framework server: %v\n", err)
-	// 		continue
-	// 	}
-	// 	if err := s.CreateAppEntry(d); err != nil {
-	// 		s.err.Printf("Failed to create device %s with DevEUI %s on app server: %v\n", d.ID, d.DevEUI, err)
-	// 		continue
-	// 	}
-	// 	s.devices[d.DevEUI] = d
-	// 	delete(deviceConfigs, d.DevEUI)
-	// 	s.std.Printf("Added device %s with DevEUI %s to lora-app-server\n", d.ID, d.DevEUI)
-	// }
-
-	// // 3. Connect all MQTT topics
-	// for _, d := range s.devices {
-	// 	if err := s.PullDeviceConfig(&d); err != nil {
-	// 		s.err.Println("Device Pulled: ", d)
-	// 		s.err.Printf("Failed to fetch device info from the framework server: %v\n", err)
-	// 		continue
-	// 	}
-	// 	s.err.Println("Device Pulled: ", d)
-	// 	s.devices[d.DevEUI] = d
-	// 	if err := s.LinkData(d); err != nil {
-	// 		s.err.Printf("Failed to link device data: %v\n", err)
-	// 	}
-	// }
 	return nil
 }
 
-func (l *Manager) Process(update framework.DeviceUpdate) error {
+func (l *Manager) ProcessAdd(update DeviceConfig) error {
+	l.addOnly(update)
+	return nil
+}
+
+func (l *Manager) ProcessUpdate(update DeviceConfig) error {
+	return l.ProcessAdd(update)
+}
+
+func (l *Manager) ProcessRemove(update DeviceConfig) error {
+
 	return nil
 }
