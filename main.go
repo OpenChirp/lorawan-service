@@ -67,7 +67,7 @@ func (update DeviceUpdateAdapter) GetLorawanDeviceConfig(c *framework.ServiceCli
 		return config, fmt.Errorf("Deviceid \"%s\" was deleted before we could fetch it's config. Skipping.", update.Id)
 	}
 	config.ID = update.Id
-	config.Topic = info.Pubsub.Topic + "/transducer"
+	config.Topic = info.Pubsub.Topic
 	config.Name = info.Name
 	config.Owner = info.Owner.Email
 
