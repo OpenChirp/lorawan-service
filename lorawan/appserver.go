@@ -289,13 +289,13 @@ func (a *AppServer) CreateNodeWithClass(AppID int64, DevEUI, AppEUI, AppKey, Nam
 	if !isValidHex(AppKey, 128) {
 		return ErrInvalidParameterSize
 	}
-	fmt.Printf("Create: \"%s\" - \"%s\" - \"%s\"\n", DevEUI, AppEUI, AppKey)
+	fmt.Printf("Create: \"%s\" - \"%s\" - \"%s\" - IsClassC=%v\n", DevEUI, AppEUI, AppKey, IsClassC)
 	req := &pb.CreateNodeRequest{
 		ApplicationID:          AppID,
 		DevEUI:                 DevEUI,
 		AppEUI:                 AppEUI,
 		AppKey:                 AppKey,
-		UseApplicationSettings: false,
+		UseApplicationSettings: !IsClassC,
 		IsClassC:               IsClassC,
 		Name:                   Name,
 		Description:            Description,

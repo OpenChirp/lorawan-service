@@ -59,17 +59,19 @@ func (update DeviceUpdateAdapter) GetClass() lorawan.LorawanClass {
 }
 
 func (update DeviceUpdateAdapter) GetLorawanDeviceConfig(c *framework.ServiceClient) (lorawan.DeviceConfig, error) {
-	var err error
 	var config lorawan.DeviceConfig
 
-	info, err := c.FetchDeviceInfo(update.Id)
-	if err != nil {
-		return config, fmt.Errorf("Deviceid \"%s\" was deleted before we could fetch it's config. Skipping.", update.Id)
-	}
 	config.ID = update.Id
-	config.Topic = info.Pubsub.Topic
-	config.Name = info.Name
-	config.Owner = info.Owner.Email
+
+	if c != nil {
+		info, err := c.FetchDeviceInfo(update.Id)
+		if err != nil {
+			return config, fmt.Errorf("Deviceid \"%s\" was deleted before we could fetch it's config. Skipping.", update.Id)
+		}
+		config.Topic = info.Pubsub.Topic
+		config.Name = info.Name
+		config.Owner = info.Owner.Email
+	}
 
 	config.DevEUI = update.GetDevEUI()
 	config.AppEUI = update.GetAppEUI()
@@ -189,6 +191,7 @@ func run(ctx *cli.Context) error {
 			continue
 		}
 		configs = append(configs, devconfig)
+		fmt.Println("DevConfig: ", devconfig)
 	}
 
 	err = c.SetStatus("Synchronizing initial registered devices and app server")
@@ -247,16 +250,20 @@ func run(ctx *cli.Context) error {
 					logitem.Info(err)
 					continue
 				}
+				logitem.Debug("Process Add")
 				lwManager.ProcessAdd(devconfig)
+
 			case framework.DeviceUpdateTypeRem:
 				logitem.Debug("Fetching device info")
-				devconfig, err := DeviceUpdateAdapter{update}.GetLorawanDeviceConfig(c)
+				devconfig, err := DeviceUpdateAdapter{update}.GetLorawanDeviceConfig(nil)
 				if err != nil {
 					// Had problem fetching device info
 					logitem.Info(err)
 					continue
 				}
+				logitem.Debug("Process Remove")
 				lwManager.ProcessRemove(devconfig)
+
 			case framework.DeviceUpdateTypeUpd:
 				logitem.Debug("Fetching device info")
 				devconfig, err := DeviceUpdateAdapter{update}.GetLorawanDeviceConfig(c)
@@ -265,7 +272,9 @@ func run(ctx *cli.Context) error {
 					logitem.Info(err)
 					continue
 				}
+				logitem.Debug("Process Update")
 				lwManager.ProcessUpdate(devconfig)
+
 			case framework.DeviceUpdateTypeErr:
 				logitem.Errorf(update.Error())
 			}
@@ -295,138 +304,6 @@ cleanup:
 	log.Info("Published service status")
 
 	return nil
-
-	/////////////////////////////////////////////////////////////
-
-	// s := StartLorawanService(frameworkURI, serviceID, user, pass)
-	// defer s.Stop()
-
-	// s.SyncSequence()
-	/* In order to bring up this service without missing any device configuration
-	 * changes, we must carefully consider the startup order. The following
-	 * comments will explain the the necessary startup order and what queuing
-	 * must happen during each step:
-	 */
-
-	/* Finally, we start processing updates from the OpenChirp service news
-	 * topic and resolving discrepancies with the lora-app-server.
-	 */
-
-	// /* Wait for SIGINT */
-	// signals := make(chan os.Signal)
-	// signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
-
-	// for {
-	// 	select {
-	// 	case update := <-s.events:
-	// 		m := Config2Map(update.Config)
-	// 		switch update.Type {
-	// 		case framework.DeviceUpdateTypeRem:
-	// 			// remove
-	// 			var d DeviceConfig
-
-	// 			// HACK, since we are not given DevEUI
-	// 			for _, dev := range s.devices {
-	// 				if dev.ID == update.Id {
-	// 					d = dev
-	// 					delete(s.devices, d.DevEUI)
-	// 					break
-	// 				}
-	// 			}
-
-	// 			if len(d.DevEUI) == 0 {
-	// 				s.err.Printf("Framework server sent me a remove of an invalid device ID\n")
-	// 				continue
-	// 			}
-
-	// 			// HACK, we need to unsubscribe
-
-	// 			if err := s.DeleteAppEntry(d); err != nil {
-	// 				s.err.Printf("Failed to delete DevEUI %s from lora app server: %v\n", d.DevEUI, err)
-	// 			}
-
-	// 			if err := s.UnlinkData(d); err != nil {
-	// 				s.err.Printf("Failed to unlink data for DevEUI %s: %v\n", d.DevEUI, err)
-	// 			}
-
-	// 			s.std.Printf("Removed device %s with DevEUI %s\n", d.ID, d.DevEUI)
-
-	// 		case framework.DeviceUpdateTypeUpd:
-	// 			// remove
-	// 			var d DeviceConfig
-
-	// 			// HACK, since we are not given DevEUI
-	// 			for _, dev := range s.devices {
-	// 				if dev.ID == update.Id {
-	// 					d = dev
-	// 					delete(s.devices, d.DevEUI)
-	// 					break
-	// 				}
-	// 			}
-
-	// 			if len(d.DevEUI) == 0 {
-	// 				s.err.Printf("Framework server sent me a remove of an invalid device ID\n")
-	// 				continue
-	// 			}
-
-	// 			// HACK, we need to unsubscribe
-
-	// 			if err := s.DeleteAppEntry(d); err != nil {
-	// 				s.err.Printf("Failed to delete DevEUI %s from lora app server: %v\n", d.DevEUI, err)
-	// 			}
-
-	// 			if err := s.UnlinkData(d); err != nil {
-	// 				s.err.Printf("Failed to unlink data for DevEUI %s: %v\n", d.DevEUI, err)
-	// 			}
-
-	// 			s.std.Printf("Removed device %s with DevEUI %s\n", d.ID, d.DevEUI)
-	// 			fallthrough
-
-	// 		case framework.DeviceUpdateTypeAdd:
-	// 			DevEui, ok := m["DevEUI"]
-	// 			if !ok {
-	// 				log.Printf("Failed to register device %s - did not specify DevEUI\n", update.Id)
-	// 				continue
-	// 			}
-	// 			AppEUI, ok := m["AppEUI"]
-	// 			if !ok {
-	// 				log.Printf("Failed to register device %s - did not specify AppEUI\n", update.Id)
-	// 				continue
-	// 			}
-	// 			AppKey, ok := m["AppKey"]
-	// 			if !ok {
-	// 				log.Printf("Failed to register device %s - did not specify AppKey\n", update.Id)
-	// 				continue
-	// 			}
-	// 			dev := DeviceConfig{
-	// 				ID:     update.Id,
-	// 				DevEUI: DevEui,
-	// 				AppEUI: AppEUI,
-	// 				AppKey: AppKey,
-	// 			}
-
-	// 			if err := s.PullDeviceConfig(&dev); err != nil {
-	// 				s.UnlinkData(dev)
-	// 				s.DeleteAppEntry(dev)
-	// 				s.err.Printf("Failed to fetch device info from the framework server: %v\n", err)
-	// 				continue
-	// 			}
-	// 			s.devices[dev.DevEUI] = dev
-
-	// 			// Create device entry on lora app server
-	// 			if err := s.CreateAppEntry(dev); err != nil {
-	// 				s.err.Printf("Failed to create DevEUI %s on lora app server: %v\n", dev.DevEUI, err)
-	// 				continue
-	// 			}
-
-	// 			if err := s.LinkData(dev); err != nil {
-	// 				s.DeleteAppEntry(dev)
-	// 				s.err.Printf("Failed to link device data: %v\n", err)
-	// 				continue
-	// 			}
-
-	// 			log.Printf("Added device %s with DevEUI %s\n", update.Id, dev.DevEUI)
-	// 		}
 }
 
 func main() {

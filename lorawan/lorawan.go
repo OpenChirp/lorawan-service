@@ -3,112 +3,24 @@ package lorawan
 import (
 	"encoding/base64"
 	"fmt"
-	"strings"
 
-	"github.com/openchirp/framework"
 	"github.com/openchirp/framework/pubsub"
 	"github.com/sirupsen/logrus"
-)
-
-const (
-	LorawanClassA LorawanClass = iota
-	LorawanClassB
-	LorawanClassC
-	LorawanClassUnknown
 )
 
 // StatusMsgAlreadyRegistered is followed by an OC Device ID
 var StatusMsgAlreadyRegistered = "DevEUI already registered to"
 var StatusMsgOk = "Successfully registered DevEUI"
 
-type LorawanClass int
-
-func (class LorawanClass) String() string {
-	switch class {
-	case LorawanClassA:
-		return "A"
-	case LorawanClassB:
-		return "B"
-	case LorawanClassC:
-		return "C"
-	default:
-		return "Unknown"
-	}
-}
-
-func LorawanClassFromString(str string) LorawanClass {
-	switch strings.ToUpper(str) {
-	case "A":
-		return LorawanClassC
-	case "B":
-		return LorawanClassC
-	case "C":
-		return LorawanClassC
-	default:
-		return LorawanClassUnknown
-	}
-}
-
-type DeviceConfig struct {
-	// OC Device ID
-	ID string
-	// OC MQTT Topic
-	Topic string
-	// OC Device Nname
-	Name string
-	// OC Device Owner
-	Owner string
-
-	DevEUI string
-	AppEUI string
-	AppKey string
-	Class  LorawanClass
-}
-
-func NewDeviceConfig(update framework.DeviceUpdate) (DeviceConfig, error) {
-	var config DeviceConfig
-	// update.Config["DevEUI"]
-
-	return config, nil
-}
-
-func (d DeviceConfig) String() string {
-	return fmt.Sprintf("ID: %s, DevEUI: %s, AppEUI: %s, AppKey: %s, Name: %s, Owner: %s, Class: %v",
-		d.ID,
-		d.DevEUI,
-		d.AppEUI,
-		d.AppKey,
-		d.Name,
-		d.Owner)
-}
-
-func (d DeviceConfig) CheckParameters() string {
-	// TODO: Implement parameter checking
-	// Should return message indicating problem if there is one
-	if len(d.DevEUI) != 16 {
-		return "Error - DevEUI must have 16 hex characters"
-	}
-	if len(d.AppEUI) != 16 {
-		return "Error - AppEUI must have 16 hex characters"
-	}
-	if len(d.AppKey) != 32 {
-		return "Error - AppKey must have 32 hex characters"
-	}
-	return ""
-}
-
-func (d DeviceConfig) GetDescription() string {
-	return fmt.Sprintf("%s - %s", d.Name, d.Owner)
-}
-
 type DeviceConfigStatusUpdate func(config DeviceConfig, str string)
 
 type Manager struct {
-	bridge       *pubsub.Bridge // A is OC, B is LoRa App Server
-	appID        int64
-	app          AppServer
-	configStatus DeviceConfigStatusUpdate
-	log          *logrus.Logger
+	bridge        *pubsub.Bridge // A is OC, B is LoRa App Server
+	appID         int64
+	app           AppServer
+	configStatus  DeviceConfigStatusUpdate
+	devIDToDevEUI map[string]string
+	log           *logrus.Logger
 }
 
 func NewManager(
@@ -122,6 +34,7 @@ func NewManager(
 	l.appID = appID
 	l.app = app
 	l.configStatus = configStatus
+	l.devIDToDevEUI = make(map[string]string)
 	l.log = log
 	return l
 }
@@ -219,9 +132,11 @@ func (l *Manager) addOnly(deviceConfig DeviceConfig) {
 	err = l.addBridge(deviceConfig)
 	if err != nil {
 		logitem.Errorf("Failed to link data stream: %v", err)
+		l.remove(deviceConfig)
 		l.configStatusFailed(deviceConfig, "Failed - Data stream bridge denied links")
 		return
 	}
+	l.devIDToDevEUI[deviceConfig.ID] = deviceConfig.DevEUI
 	l.configStatusOk(deviceConfig)
 }
 
@@ -243,9 +158,11 @@ func (l *Manager) updateDescriptionAndAddOnly(deviceConfig DeviceConfig) {
 	err = l.addBridge(deviceConfig)
 	if err != nil {
 		logitem.Errorf("Failed to link data stream: %v", err)
+		l.remove(deviceConfig)
 		l.configStatusFailed(deviceConfig, "Failed - Data stream bridge denied links")
 		return
 	}
+	l.devIDToDevEUI[deviceConfig.ID] = deviceConfig.DevEUI
 	l.configStatusOk(deviceConfig)
 }
 
@@ -261,6 +178,27 @@ func (l *Manager) refreshAndAddOnly(deviceConfig DeviceConfig) {
 	}
 
 	l.addOnly(deviceConfig)
+}
+
+func (l *Manager) remove(deviceConfig DeviceConfig) {
+	logitem := l.log.WithField("deviceid", deviceConfig.ID)
+
+	if devEUI, ok := l.devIDToDevEUI[deviceConfig.ID]; ok {
+		logitem.Debug("Deleting node from app server")
+		err := l.app.DeleteNode(devEUI)
+		if err != nil {
+			logitem.Errorf("Failed to delete node from app server: %v", err)
+		}
+	} else {
+		logitem.Errorf("Attempted to delete unknown device ID")
+	}
+
+	err := l.remBridge(deviceConfig)
+	if err != nil {
+		logitem.Errorf("Failed remove links: %v", err)
+	}
+
+	delete(l.devIDToDevEUI, deviceConfig.ID)
 }
 
 // Sync synchronizes the LoRa App server to the given device updates.
@@ -328,6 +266,7 @@ func (l *Manager) Sync(configs []DeviceConfig) error {
 			// }
 
 			if errs := chosenConfig.CheckParameters(); len(errs) > 0 {
+				// If Parameters Are Bad
 				l.log.Infof("Device ID \"%s\" failed parameter check, so it will be deleted and not re-added: %s", errs)
 				err = l.app.DeleteNode(chosenConfig.DevEUI)
 				if err != nil {
@@ -336,17 +275,22 @@ func (l *Manager) Sync(configs []DeviceConfig) error {
 				}
 				l.configStatusFailed(chosenConfig, errs)
 			} else {
+				// If Parameters Are Good
 				if chosenConfig.AppEUI != appNode.AppEUI ||
 					chosenConfig.AppKey != appNode.AppKey ||
-					chosenConfig.Name != appNode.Name ||
+					chosenConfig.ID != appNode.Name ||
 					chosenConfig.Class.String() != appNodeClass {
-
 					// Needs a full refresh and link - session key will be wiped
+					l.log.WithField("deviceid", chosenConfig.ID).Debug("App server disagrees with core parameters")
 					l.refreshAndAddOnly(chosenConfig)
-
 				} else if chosenConfig.GetDescription() != appNode.Description {
 					// Simply update the description on the app server and link
+					l.log.WithField("deviceid", chosenConfig.ID).Debug("App server disagrees with description")
 					l.updateDescriptionAndAddOnly(chosenConfig)
+				} else {
+					l.log.WithField("deviceid", chosenConfig.ID).Debug("App server agrees with parameters")
+					l.addBridge(chosenConfig)
+					l.devIDToDevEUI[chosenConfig.ID] = chosenConfig.DevEUI
 				}
 			}
 
@@ -398,16 +342,124 @@ func (l *Manager) Sync(configs []DeviceConfig) error {
 	return nil
 }
 
-func (l *Manager) ProcessAdd(update DeviceConfig) error {
-	l.addOnly(update)
-	return nil
+func (l *Manager) ProcessAdd(update DeviceConfig) {
+	logitem := l.log.WithField("deviceid", update.ID)
+	/* Tip toe until we know they have rights to commit this update to DevEUI */
+
+	devEUI, ok := l.devIDToDevEUI[update.ID]
+
+	if ok && (devEUI != update.DevEUI) {
+		l.remove(update)
+	}
+
+	appNode, _ := l.app.GetNode(update.DevEUI)
+
+	// If device doesn't exist - Add it
+	if appNode == nil {
+		logitem.Debug("Adding device")
+		l.addOnly(update)
+		return
+	}
+
+	// Check that this deviceid is the owner of the DevEUI
+	if appNode.Name != update.ID {
+		logitem.Debug("Device conflicts with another deviceid")
+		l.configStatusConflict(update, appNode.Name)
+		return
+	}
+
+	appNodeClass := "A"
+	if appNode.IsClassC {
+		appNodeClass = "C"
+	}
+
+	// Must Be An Update
+	if update.AppEUI != appNode.AppEUI ||
+		update.AppKey != appNode.AppKey ||
+		update.ID != appNode.Name ||
+		update.Class.String() != appNodeClass {
+
+		// Needs a full refresh and link - session key will be wiped
+		l.bridge.RemoveLinksAll(update.ID)
+		l.refreshAndAddOnly(update)
+	} else if update.GetDescription() != appNode.Description {
+		// Simply update the description on the app server and link
+		l.updateDescriptionAndAddOnly(update)
+	} else {
+		l.addBridge(update)
+		l.devIDToDevEUI[update.ID] = update.DevEUI
+	}
+
 }
 
-func (l *Manager) ProcessUpdate(update DeviceConfig) error {
-	return l.ProcessAdd(update)
+func (l *Manager) ProcessUpdate(update DeviceConfig) {
+	logitem := l.log.WithField("deviceid", update.ID)
+	/* Tip toe until we know they have rights to commit this update to DevEUI */
+
+	devEUI, ok := l.devIDToDevEUI[update.ID]
+
+	// If it was denied before, try to add it this time
+	if !ok {
+		l.ProcessAdd(update)
+		return
+	}
+
+	// If they are attempting to change their DevEUI, we need to go through
+	// Add process again
+	if devEUI != update.DevEUI {
+		l.remove(update)
+		l.ProcessAdd(update)
+		return
+	}
+
+	/* They must have rights to update this DevEUI */
+
+	appNode, _ := l.app.GetNode(update.DevEUI)
+	if appNode == nil {
+		// This is an awkward situation, since we said we added it, but it isn't
+		// on the app server. It must have errored out when we added it to the
+		// app server
+		// Action: Cleanup and Add
+		logitem.Errorf("Received an update for a deviceid and DevEUI we added, but it is missing from app server")
+		l.remove(update)
+		l.addOnly(update)
+		return
+	}
+	if appNode.Name != update.ID {
+		// Another awkward situation, since our internal map said that this
+		// DevEUI was owned by this deviceid and the app server says it is
+		// is owned by some other deviceid(or some rando).
+		// Action: Remove, Cleanup, Add
+		logitem.Errorf("Received an update for a deviceid and DevEUI we added, but the app server reports a different Name/deviceid")
+		l.remove(update)
+		l.addOnly(update)
+		return
+	}
+
+	appNodeClass := "A"
+	if appNode.IsClassC {
+		appNodeClass = "C"
+	}
+
+	// Must Be An Update
+	if update.AppEUI != appNode.AppEUI ||
+		update.AppKey != appNode.AppKey ||
+		update.Class.String() != appNodeClass {
+
+		// Needs a full refresh and link - session key will be wiped
+		logitem.Debug("Changes require refreshing device on app server")
+		l.remove(update)
+		l.addOnly(update)
+	} else if update.GetDescription() != appNode.Description {
+		// Simply update the description on the app server and link
+		logitem.Debug("Simply updating description")
+		l.updateDescriptionAndAddOnly(update)
+	}
+
 }
 
-func (l *Manager) ProcessRemove(update DeviceConfig) error {
-
-	return nil
+func (l *Manager) ProcessRemove(update DeviceConfig) {
+	// Since it looks up DevEUI from internal map, it will only remove if it
+	// was granted the previously requested DevEUI upon add or update
+	l.remove(update)
 }
