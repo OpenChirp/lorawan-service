@@ -85,8 +85,8 @@ type AppServer struct {
 	Application   pb.ApplicationClient
 }
 
-func NewAppServer(address string) AppServer {
-	return AppServer{addr: address}
+func NewAppServer(address string) *AppServer {
+	return &AppServer{addr: address}
 }
 
 // Login authenticates with the lora app server and obtains the JWT for

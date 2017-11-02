@@ -17,7 +17,7 @@ type DeviceConfigStatusUpdate func(config DeviceConfig, str string)
 type Manager struct {
 	bridge        *pubsub.Bridge // A is OC, B is LoRa App Server
 	appID         int64
-	app           AppServer
+	app           *AppServer
 	configStatus  DeviceConfigStatusUpdate
 	devIDToDevEUI map[string]string
 	log           *logrus.Logger
@@ -25,7 +25,7 @@ type Manager struct {
 
 func NewManager(
 	bridge *pubsub.Bridge,
-	app AppServer,
+	app *AppServer,
 	appID int64,
 	configStatus DeviceConfigStatusUpdate,
 	log *logrus.Logger) *Manager {
