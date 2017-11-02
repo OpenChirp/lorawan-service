@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/openchirp/framework"
+	pb "github.com/openchirp/lorawan-service/api"
 )
 
 type LorawanClass int
@@ -94,4 +95,46 @@ func (d DeviceConfig) CheckParameters() string {
 
 func (d DeviceConfig) GetDescription() string {
 	return fmt.Sprintf("%s - %s", d.Name, d.Owner)
+}
+
+/* Functions to compare against app server app node response */
+
+func (d DeviceConfig) matchesAppNodeRespDevEUI(appNode *pb.GetNodeResponse) bool {
+	return strings.ToUpper(d.DevEUI) == strings.ToUpper(appNode.DevEUI)
+}
+
+func (d DeviceConfig) matchesAppNodeRespAppEUI(appNode *pb.GetNodeResponse) bool {
+	return strings.ToUpper(d.AppEUI) == strings.ToUpper(appNode.AppEUI)
+}
+
+func (d DeviceConfig) matchesAppNodeRespAppKey(appNode *pb.GetNodeResponse) bool {
+	return strings.ToUpper(d.AppKey) == strings.ToUpper(appNode.AppKey)
+}
+
+func (d DeviceConfig) matchesAppNodeRespClass(appNode *pb.GetNodeResponse) bool {
+	appNodeClass := "A"
+	if appNode.IsClassC {
+		appNodeClass = "C"
+	}
+	return d.Class.String() == appNodeClass
+}
+
+func (d DeviceConfig) matchesAppNodeRespName(appNode *pb.GetNodeResponse) bool {
+	return d.ID == appNode.Name
+}
+
+func (d DeviceConfig) matchesAppNodeRespDesc(appNode *pb.GetNodeResponse) bool {
+	return d.GetDescription() == appNode.Description
+}
+
+func (d DeviceConfig) matchesAppNodeRespCore(appNode *pb.GetNodeResponse) bool {
+	return d.matchesAppNodeRespDevEUI(appNode) &&
+		d.matchesAppNodeRespAppEUI(appNode) &&
+		d.matchesAppNodeRespAppKey(appNode) &&
+		d.matchesAppNodeRespClass(appNode) &&
+		d.matchesAppNodeRespName(appNode)
+}
+
+func (d DeviceConfig) matchesAppNodeResp(appNode *pb.GetNodeResponse) bool {
+	return d.matchesAppNodeRespCore(appNode) && d.matchesAppNodeRespDesc(appNode)
 }

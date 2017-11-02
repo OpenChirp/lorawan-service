@@ -105,7 +105,7 @@ func (l *Manager) addOnly(deviceConfig DeviceConfig) {
 		deviceConfigIsClassC = true
 	}
 
-	logitem.Debug("Checking parameters")
+	logitem.WithField("config", deviceConfig).Debug("Checking parameters")
 	if errs := deviceConfig.CheckParameters(); errs != "" {
 		logitem.Warnf("Failed to add device: %s", errs)
 		l.configStatusFailed(deviceConfig, errs)
@@ -290,16 +290,57 @@ func (l *Manager) Sync(configs []DeviceConfig) error {
 				l.configStatusFailed(chosenConfig, errs)
 			} else {
 				// If Parameters Are Good
-				if chosenConfig.AppEUI != appNode.AppEUI ||
-					chosenConfig.AppKey != appNode.AppKey ||
-					chosenConfig.ID != appNode.Name ||
-					chosenConfig.Class.String() != appNodeClass {
+				if !chosenConfig.matchesAppNodeRespCore(appNode) {
 					// Needs a full refresh and link - session key will be wiped
-					l.log.WithField("deviceid", chosenConfig.ID).Debug("App server disagrees with core parameters")
+
+					if !chosenConfig.matchesAppNodeRespAppEUI(appNode) {
+						l.log.WithFields(logrus.Fields{
+							"deviceid":   chosenConfig.ID,
+							"new-appeui": chosenConfig.AppEUI,
+							"old-appeui": appNode.AppEUI,
+						}).Debug("App server disagrees on AppEUI")
+					}
+
+					if !chosenConfig.matchesAppNodeRespAppKey(appNode) {
+						l.log.WithFields(logrus.Fields{
+							"deviceid":   chosenConfig.ID,
+							"new-appkey": chosenConfig.AppKey,
+							"old-appkey": appNode.AppKey,
+						}).Debug("App server disagrees on AppKey")
+					}
+
+					if !chosenConfig.matchesAppNodeRespName(appNode) {
+						l.log.WithFields(logrus.Fields{
+							"deviceid": chosenConfig.ID,
+							"new-name": chosenConfig.ID,
+							"old-name": appNode.Name,
+						}).Debug("App server disagrees on Name(OC ID)")
+					}
+
+					if !chosenConfig.matchesAppNodeRespClass(appNode) {
+						l.log.WithFields(logrus.Fields{
+							"deviceid":  chosenConfig.ID,
+							"new-class": chosenConfig.Class.String(),
+							"old-class": appNodeClass,
+						}).Debug("App server disagrees on Class")
+					}
+
+					// l.log.WithFields(logrus.Fields{
+					// 	"deviceid":   chosenConfig.ID,
+					// 	"new-deveui": chosenConfig.DevEUI,
+					// 	"new-appeui": chosenConfig.AppEUI,
+					// 	"new-appkey": chosenConfig.AppKey,
+					// 	"new-name":   chosenConfig.ID,
+					// 	"new-class":  chosenConfig.Class.String(),
+					// }).Debug("App server disagrees with core parameters")
 					l.refreshAndAddOnly(chosenConfig)
-				} else if chosenConfig.GetDescription() != appNode.Description {
+				} else if !chosenConfig.matchesAppNodeRespDesc(appNode) {
 					// Simply update the description on the app server and link
-					l.log.WithField("deviceid", chosenConfig.ID).Debug("App server disagrees with description")
+					l.log.WithFields(logrus.Fields{
+						"deviceid": chosenConfig.ID,
+						"old-desc": appNode.Description,
+						"new-desc": chosenConfig.GetDescription(),
+					}).Debugf("App server disagrees with description")
 					l.updateDescriptionAndAddOnly(chosenConfig)
 				} else {
 					l.log.WithField("deviceid", chosenConfig.ID).Debug("App server agrees with parameters")
@@ -376,27 +417,18 @@ func (l *Manager) ProcessAdd(update DeviceConfig) {
 	}
 
 	// Check that this deviceid is the owner of the DevEUI
-	if appNode.Name != update.ID {
+	if !update.matchesAppNodeRespName(appNode) {
 		logitem.Debug("Device conflicts with another deviceid")
 		l.configStatusConflict(update, appNode.Name)
 		return
 	}
 
-	appNodeClass := "A"
-	if appNode.IsClassC {
-		appNodeClass = "C"
-	}
-
 	// Must Be An Update
-	if update.AppEUI != appNode.AppEUI ||
-		update.AppKey != appNode.AppKey ||
-		update.ID != appNode.Name ||
-		update.Class.String() != appNodeClass {
-
+	if !update.matchesAppNodeRespCore(appNode) {
 		// Needs a full refresh and link - session key will be wiped
 		l.bridge.RemoveLinksAll(update.ID)
 		l.refreshAndAddOnly(update)
-	} else if update.GetDescription() != appNode.Description {
+	} else if !update.matchesAppNodeRespDesc(appNode) {
 		// Simply update the description on the app server and link
 		l.updateDescriptionAndAddOnly(update)
 	} else {
@@ -439,7 +471,7 @@ func (l *Manager) ProcessUpdate(update DeviceConfig) {
 		l.addOnly(update)
 		return
 	}
-	if appNode.Name != update.ID {
+	if !update.matchesAppNodeRespName(appNode) {
 		// Another awkward situation, since our internal map said that this
 		// DevEUI was owned by this deviceid and the app server says it is
 		// is owned by some other deviceid(or some rando).
@@ -450,21 +482,14 @@ func (l *Manager) ProcessUpdate(update DeviceConfig) {
 		return
 	}
 
-	appNodeClass := "A"
-	if appNode.IsClassC {
-		appNodeClass = "C"
-	}
-
 	// Must Be An Update
-	if update.AppEUI != appNode.AppEUI ||
-		update.AppKey != appNode.AppKey ||
-		update.Class.String() != appNodeClass {
+	if !update.matchesAppNodeRespCore(appNode) {
 
 		// Needs a full refresh and link - session key will be wiped
 		logitem.Debug("Changes require refreshing device on app server")
 		l.remove(update)
 		l.addOnly(update)
-	} else if update.GetDescription() != appNode.Description {
+	} else if !update.matchesAppNodeRespDesc(appNode) {
 		// Simply update the description on the app server and link
 		logitem.Debug("Simply updating description")
 		l.updateDescriptionAndAddOnly(update)
