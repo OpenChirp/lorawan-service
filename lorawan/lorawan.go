@@ -146,8 +146,22 @@ func (l *Manager) updateDescriptionAndAddOnly(deviceConfig DeviceConfig) {
 	logitem := l.log.WithField("deviceid", deviceConfig.ID).WithField("deveui", deviceConfig.DevEUI)
 
 	logitem.Debug("Updating Node Description on App Server")
+
+	deviceConfigIsClassC := false
+	if deviceConfig.Class == LorawanClassC {
+		deviceConfigIsClassC = true
+	}
+
 	// Simply update the description on the app server: %v", chosen
-	err := l.app.UpdateNodeDescription(deviceConfig.DevEUI, deviceConfig.GetDescription())
+	err := l.app.UpdateNode(
+		l.appID,
+		deviceConfig.DevEUI,
+		deviceConfig.AppEUI,
+		deviceConfig.AppKey,
+		deviceConfig.ID,
+		deviceConfig.GetDescription(),
+		deviceConfigIsClassC,
+	)
 	if err != nil {
 		logitem.Errorf("Failed update description of node on app server: %v", err)
 		l.configStatusFailed(deviceConfig, "Failed - App server denied registration")

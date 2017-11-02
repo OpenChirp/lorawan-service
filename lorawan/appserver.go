@@ -325,9 +325,10 @@ func (a *AppServer) CreateNodeWithClass(AppID int64, DevEUI, AppEUI, AppKey, Nam
 	return err
 }
 
-// UpdateNode was intended to update a node's info wothout crushing session keys
-// but, I am not sure this is possible with updating all info
-func (a *AppServer) UpdateNodeDescription(DevEUI, Description string) error {
+// UpdateNode was intended to update a node's info without crushing session keys
+// but, I am not sure this is possible with updating all info.
+// Unfortunately, there is no way to simply update one field
+func (a *AppServer) UpdateNode(AppID int64, DevEUI, AppEUI, AppKey, Name, Description string, IsClassC bool) error {
 	/* Example CreateNodeRequest
 	applicationID:"4"
 	name:"Test"
@@ -351,8 +352,14 @@ func (a *AppServer) UpdateNodeDescription(DevEUI, Description string) error {
 	}
 	// fmt.Printf("UpdateDescription: \"%s\" - \"%s\" - \"%s\"\n", DevEUI, AppEUI, AppKey)
 	req := &pb.UpdateNodeRequest{
-		DevEUI:      DevEUI,
-		Description: Description,
+		ApplicationID:          AppID,
+		DevEUI:                 DevEUI,
+		AppEUI:                 AppEUI,
+		AppKey:                 AppKey,
+		UseApplicationSettings: !IsClassC,
+		IsClassC:               IsClassC,
+		Name:                   Name,
+		Description:            Description,
 	}
 	_, err := a.Node.Update(context.Background(), req)
 	return err
