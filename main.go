@@ -191,7 +191,8 @@ func run(ctx *cli.Context) error {
 			continue
 		}
 		configs = append(configs, devconfig)
-		fmt.Println("DevConfig: ", devconfig)
+
+		log.WithField("deveui", devconfig.DevEUI).Debug("Received DevConfig: ", devconfig)
 	}
 
 	err = c.SetStatus("Synchronizing initial registered devices and app server")
