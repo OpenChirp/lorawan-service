@@ -17,7 +17,7 @@ import (
 
 const (
 	runningStatus           = true
-	appServerJWTRefreshTime = time.Minute * time.Duration(60)
+	appServerJWTRefreshTime = time.Minute * time.Duration(30)
 	version                 = "2.0"
 )
 
