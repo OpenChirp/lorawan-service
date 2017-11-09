@@ -56,6 +56,8 @@ func (l *Manager) addBridge(d DeviceConfig) error {
 	topicTx := "application/" + fmt.Sprint(l.appID) + "/node/" + d.DevEUI + "/tx"
 	topicRx := "application/" + fmt.Sprint(l.appID) + "/node/" + d.DevEUI + "/rx"
 	topicRawrx := d.Topic + "/transducer/rawrx"
+	topicJoin := "application/" + fmt.Sprint(l.appID) + "/node/" + d.DevEUI + "/join"
+	topicJoinNotification := d.Topic + "/transducer/joinrequest"
 
 	logitem.Debug("Adding fwd tx link")
 	err := l.bridge.AddFwd(
@@ -87,6 +89,19 @@ func (l *Manager) addBridge(d DeviceConfig) error {
 		l.bridge.RemoveLinksAll(d.ID)
 		return err
 	}
+
+	logitem.Debug("Adding rev join link")
+	err = l.bridge.AddRev(
+		d.ID,
+		topicJoin,
+		func(pubsuba pubsub.PubSub, topicb string, payload []byte) error {
+			return pubsuba.Publish(topicJoinNotification, "1")
+		})
+	if err != nil {
+		l.bridge.RemoveLinksAll(d.ID)
+		return err
+	}
+
 	return nil
 }
 func (l *Manager) remBridge(d DeviceConfig) error {
