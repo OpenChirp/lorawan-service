@@ -153,6 +153,24 @@
 			"revisionTime": "2017-01-17T20:56:33Z"
 		},
 		{
+			"checksumSHA1": "IesX9bTXvGj3SBz2tlgBXaYVQ60=",
+			"path": "github.com/openchirp/framework",
+			"revision": "9dcedd3c0fc9b12bd54e83baa2698b6133a745c7",
+			"revisionTime": "2018-03-15T00:41:32Z"
+		},
+		{
+			"checksumSHA1": "pcflGy0cl0T0E21TK94eBnWDADM=",
+			"path": "github.com/openchirp/framework/pubsub",
+			"revision": "9dcedd3c0fc9b12bd54e83baa2698b6133a745c7",
+			"revisionTime": "2018-03-15T00:41:32Z"
+		},
+		{
+			"checksumSHA1": "VytE+8F+3Rqt+KZa0PNlaFOOV2U=",
+			"path": "github.com/openchirp/framework/rest",
+			"revision": "9dcedd3c0fc9b12bd54e83baa2698b6133a745c7",
+			"revisionTime": "2018-03-15T00:41:32Z"
+		},
+		{
 			"checksumSHA1": "ynJSWoF6v+3zMnh9R0QmmG6iGV8=",
 			"path": "github.com/pkg/errors",
 			"revision": "bfd5150e4e41705ded2129ec33379de1cb90b513",
@@ -339,5 +357,5 @@
 			"revisionTime": "2015-02-04T08:55:30Z"
 		}
 	],
-	"rootPath": "github.com/openchirp/lorawan"
+	"rootPath": "github.com/openchirp/lorawan-service"
 }
