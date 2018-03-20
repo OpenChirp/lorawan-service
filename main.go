@@ -87,7 +87,7 @@ func run(ctx *cli.Context) error {
 	log := logrus.New()
 	log.SetLevel(logrus.Level(uint32(ctx.Int("log-level"))))
 
-	log.Info("Starting Byte Translator Service ")
+	log.Info("Starting LoRaWAN Service ")
 
 	/* Start framework service client */
 	c, err := framework.StartServiceClientStatus(
