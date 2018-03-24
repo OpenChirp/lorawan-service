@@ -260,7 +260,7 @@ func (l *Manager) Sync(configs []DeviceConfig) error {
 	   while also denying device configs that conflict the app server's nodes
 	*/
 	l.log.Debugln("Fetching lora app server config")
-	appNodes, err := l.app.ListNodes(l.appID)
+	appNodes, err := l.app.ListDevices(l.appID)
 	if err != nil {
 		return fmt.Errorf("Failed to fetch list of nodes from lora app server: %v\n", err)
 	}
@@ -422,7 +422,7 @@ func (l *Manager) ProcessAdd(update DeviceConfig) {
 		l.remove(update)
 	}
 
-	appNode, _ := l.app.GetNode(update.DevEUI)
+	appNode, _ := l.app.GetDevice(update.DevEUI)
 
 	// If device doesn't exist - Add it
 	if appNode == nil {
@@ -475,7 +475,7 @@ func (l *Manager) ProcessUpdate(update DeviceConfig) {
 
 	/* They must have rights to update this DevEUI */
 
-	appNode, _ := l.app.GetNode(update.DevEUI)
+	appNode, _ := l.app.GetDevice(update.DevEUI)
 	if appNode == nil {
 		// This is an awkward situation, since we said we added it, but it isn't
 		// on the app server. It must have errored out when we added it to the

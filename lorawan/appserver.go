@@ -18,7 +18,7 @@ import (
 
 	"encoding/base64"
 
-	pb "github.com/openchirp/lorawan-service/api"
+	pb "github.com/brocaar/lora-app-server/api"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -79,13 +79,13 @@ type AppServer struct {
 	jwt  string
 	conn *grpc.ClientConn
 
-	User          pb.UserClient
-	Internal      pb.InternalClient
-	Organization  pb.OrganizationClient
-	Node          pb.NodeClient
-	Gateway       pb.GatewayClient
-	DownlinkQueue pb.DownlinkQueueClient
-	Application   pb.ApplicationClient
+	User         pb.UserClient
+	Internal     pb.InternalClient
+	Organization pb.OrganizationClient
+	Device       pb.DeviceClient // Node          pb.NodeClient
+	Gateway      pb.GatewayClient
+	DeviceQueue  pb.DeviceQueueClient // DownlinkQueue pb.DownlinkQueueClient
+	Application  pb.ApplicationClient
 }
 
 func NewAppServer(address string) *AppServer {
@@ -165,9 +165,11 @@ func (a *AppServer) connect() error {
 	a.User = pb.NewUserClient(a.conn)
 	a.Internal = pb.NewInternalClient(a.conn)
 	a.Organization = pb.NewOrganizationClient(a.conn)
-	a.Node = pb.NewNodeClient(a.conn)
+	// a.Node = pb.NewNodeClient(a.conn)
+	a.Device = pb.NewDeviceClient(a.conn)
 	a.Gateway = pb.NewGatewayClient(a.conn)
-	a.DownlinkQueue = pb.NewDownlinkQueueClient(a.conn)
+	// a.DownlinkQueue = pb.NewDownlinkQueueClient(a.conn)
+	a.DeviceQueue = pb.NewDeviceQueueClient(a.conn)
 	a.Application = pb.NewApplicationClient(a.conn)
 	log.Println("Connected")
 	return nil
@@ -224,20 +226,24 @@ func (a *AppServer) GetUsers() {
 	}
 }
 
-func (a *AppServer) ListNodes(AppID int64) ([]*pb.GetNodeResponse, error) {
-	req := &pb.ListNodeByApplicationIDRequest{
+func (a *AppServer) ListDevices(AppID int64) ([]*pb.DeviceListItem, error) {
+	req := &pb.ListDeviceByApplicationIDRequest{
 		ApplicationID: AppID,
 		Limit:         requestLimit,
 		Offset:        0,
 	}
-	nodes, err := a.Node.ListByApplicationID(context.Background(), req)
-	return nodes.GetResult(), err
+	devices, err := a.Device.ListByApplicationID(context.Background(), req)
+	// TODO: Need to use some intermediate type that has the application key
+	// TODO: Need to fetch app keys also
+	return devices.GetResult(), err
 }
 
-func (a *AppServer) GetNode(DevEUI string) (*pb.GetNodeResponse, error) {
-	req := &pb.GetNodeRequest{DevEUI}
-	node, err := a.Node.Get(context.Background(), req)
-	return node, err
+func (a *AppServer) GetDevice(DevEUI string) (*pb.GetDeviceResponse, error) {
+	req := &pb.GetDeviceRequest{DevEUI}
+	device, err := a.Device.Get(context.Background(), req)
+	// TODO: Need to use some intermediate type that has the application key
+	// TODO: Need to fetch appkey also
+	return device, err
 }
 
 func (a *AppServer) CreateNode(AppID int64, DevEUI, AppEUI, AppKey, Name, Description string) error {

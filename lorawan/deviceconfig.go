@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	pb "github.com/brocaar/lora-app-server/api"
 	"github.com/openchirp/framework"
-	pb "github.com/openchirp/lorawan-service/api"
 )
 
 type LorawanClass int
