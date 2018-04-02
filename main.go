@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"time"
@@ -38,15 +39,15 @@ type DeviceUpdateAdapter struct {
 }
 
 func (update DeviceUpdateAdapter) GetDevEUI() string {
-	return update.Config[configDevEUI]
+	return strings.ToLower(update.Config[configDevEUI])
 }
 
 func (update DeviceUpdateAdapter) GetAppEUI() string {
-	return update.Config[configAppEUI]
+	return strings.ToLower(update.Config[configAppEUI])
 }
 
 func (update DeviceUpdateAdapter) GetAppKey() string {
-	return update.Config[configAppKey]
+	return strings.ToLower(update.Config[configAppKey])
 }
 
 func (update DeviceUpdateAdapter) GetClass() lorawan.LorawanClass {
