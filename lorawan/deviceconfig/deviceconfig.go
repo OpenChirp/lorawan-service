@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/openchirp/framework"
+	"github.com/openchirp/lorawan-service/lorawan/utils"
 )
 
 type LorawanClass int

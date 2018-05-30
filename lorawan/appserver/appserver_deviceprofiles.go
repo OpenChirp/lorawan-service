@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	pb "github.com/brocaar/lora-app-server/api"
+	. "github.com/openchirp/lorawan-service/lorawan/deviceconfig"
 	"golang.org/x/net/context"
 )
 
