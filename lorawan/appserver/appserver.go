@@ -1,4 +1,4 @@
-package lorawan
+package appserver
 
 import (
 	"crypto/tls"
@@ -8,17 +8,13 @@ import (
 
 	"errors"
 
-	"strconv"
-
-	"strings"
-
-	"math"
-
 	"encoding/json"
 
 	"encoding/base64"
 
-	pb "github.com/openchirp/lorawan-service/api"
+	pb "github.com/brocaar/lora-app-server/api"
+	"github.com/openchirp/lorawan-service/lorawan/utils"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -32,43 +28,6 @@ const (
 
 var ErrInvalidParameterSize = errors.New("A parameter given has an invalid size")
 
-// isValidHex indicates if value is a proper hex strings that can be contained
-// with the given number of bits
-func isValidHex(value string, bits int) bool {
-	str := strings.ToLower(value)
-	precZeros := true
-	bitcount := 0
-	for _, c := range str {
-		// Ensure the rune is a HEX character
-		if !strings.Contains("0123456789abcdef", string(c)) {
-			return false
-		}
-		// Ensure that we are within the given bit size
-		if precZeros {
-			value, err := strconv.ParseInt(string(c), 16, 8)
-			if err != nil {
-				// This is unclear how this could ever error out
-				fmt.Println("err on parse")
-				return false
-			}
-			// Add in variable number of bits for first HEX char
-			if value == 0 {
-				continue
-			} else {
-				precZeros = false
-			}
-			bitcount += int(math.Ceil(math.Log2(float64(value + 1))))
-		} else {
-			// Add in a nibble
-			bitcount += 4
-		}
-		if bitcount > bits {
-			return false
-		}
-	}
-	return true
-}
-
 // AppServer represents the app server control context
 // Locking is not needed because the event loop that calls these functions
 // is sequential in nature(even the reconnect method call)
@@ -79,17 +38,33 @@ type AppServer struct {
 	jwt  string
 	conn *grpc.ClientConn
 
+	appid, orgid, netwkid int64
+	devprof               deviceProfileCache
+
 	User          pb.UserClient
 	Internal      pb.InternalClient
 	Organization  pb.OrganizationClient
-	Node          pb.NodeClient
+	Device        pb.DeviceClient
 	Gateway       pb.GatewayClient
-	DownlinkQueue pb.DownlinkQueueClient
+	DeviceQueue   pb.DeviceQueueClient
+	DeviceProfile pb.DeviceProfileServiceClient
 	Application   pb.ApplicationClient
+	log           *logrus.Logger
 }
 
-func NewAppServer(address string) *AppServer {
-	return &AppServer{addr: address}
+func NewAppServer(address string, appID, organizationID, networkServerID int64) *AppServer {
+	log := logrus.New()
+	log.Level = 5
+	return &AppServer{
+		addr:    address,
+		appid:   appID,
+		orgid:   organizationID,
+		netwkid: networkServerID,
+		devprof: deviceProfileCache{
+			profs: make(map[deviceProfileSettings]deviceProfileMeta),
+		},
+		log: log,
+	}
 }
 
 // SetJWT simply sets the JWT for the session
@@ -165,9 +140,12 @@ func (a *AppServer) connect() error {
 	a.User = pb.NewUserClient(a.conn)
 	a.Internal = pb.NewInternalClient(a.conn)
 	a.Organization = pb.NewOrganizationClient(a.conn)
-	a.Node = pb.NewNodeClient(a.conn)
+	// a.Node = pb.NewNodeClient(a.conn)
+	a.Device = pb.NewDeviceClient(a.conn)
 	a.Gateway = pb.NewGatewayClient(a.conn)
-	a.DownlinkQueue = pb.NewDownlinkQueueClient(a.conn)
+	// a.DownlinkQueue = pb.NewDownlinkQueueClient(a.conn)
+	a.DeviceQueue = pb.NewDeviceQueueClient(a.conn)
+	a.DeviceProfile = pb.NewDeviceProfileServiceClient(a.conn)
 	a.Application = pb.NewApplicationClient(a.conn)
 	log.Println("Connected")
 	return nil
@@ -224,20 +202,25 @@ func (a *AppServer) GetUsers() {
 	}
 }
 
-func (a *AppServer) ListNodes(AppID int64) ([]*pb.GetNodeResponse, error) {
-	req := &pb.ListNodeByApplicationIDRequest{
+func (a *AppServer) ListDevices(AppID int64) ([]*pb.DeviceListItem, error) {
+	req := &pb.ListDeviceByApplicationIDRequest{
 		ApplicationID: AppID,
 		Limit:         requestLimit,
 		Offset:        0,
 	}
-	nodes, err := a.Node.ListByApplicationID(context.Background(), req)
-	return nodes.GetResult(), err
+	devices, err := a.Device.ListByApplicationID(context.Background(), req)
+	// TODO: Need to use some intermediate type that has the application key
+	// TODO: Need to fetch app keys also
+	return devices.GetResult(), err
 }
 
-func (a *AppServer) GetNode(DevEUI string) (*pb.GetNodeResponse, error) {
-	req := &pb.GetNodeRequest{DevEUI}
-	node, err := a.Node.Get(context.Background(), req)
-	return node, err
+func (a *AppServer) GetDevice(DevEUI string) (*pb.GetDeviceResponse, error) {
+	// req := &pb.GetDeviceRequest{DevEUI}
+	// device, err := a.Device.Get(context.Background(), req)
+	// TODO: Need to use some intermediate type that has the application key
+	// TODO: Need to fetch appkey also
+	// return device, err
+	return nil, nil
 }
 
 func (a *AppServer) CreateNode(AppID int64, DevEUI, AppEUI, AppKey, Name, Description string) error {
@@ -259,27 +242,28 @@ func (a *AppServer) CreateNode(AppID int64, DevEUI, AppEUI, AppKey, Name, Descri
 	rxDelay:0
 	rxWindow:"RX1"
 	*/
-	if !isValidHex(DevEUI, 64) {
+	if !utils.IsValidHex(DevEUI, 64) {
 		return ErrInvalidParameterSize
 	}
-	if !isValidHex(AppEUI, 64) {
+	if !utils.IsValidHex(AppEUI, 64) {
 		return ErrInvalidParameterSize
 	}
-	if !isValidHex(AppKey, 128) {
+	if !utils.IsValidHex(AppKey, 128) {
 		return ErrInvalidParameterSize
 	}
 	fmt.Printf("Create: \"%s\" - \"%s\" - \"%s\"\n", DevEUI, AppEUI, AppKey)
-	req := &pb.CreateNodeRequest{
-		ApplicationID:          AppID,
-		DevEUI:                 DevEUI,
-		AppEUI:                 AppEUI,
-		AppKey:                 AppKey,
-		UseApplicationSettings: true,
-		Name:        Name,
-		Description: Description,
-	}
-	_, err := a.Node.Create(context.Background(), req)
-	return err
+	// req := &pb.CreateNodeRequest{
+	// 	ApplicationID:          AppID,
+	// 	DevEUI:                 DevEUI,
+	// 	AppEUI:                 AppEUI,
+	// 	AppKey:                 AppKey,
+	// 	UseApplicationSettings: true,
+	// 	Name:        Name,
+	// 	Description: Description,
+	// }
+	// _, err := a.Node.Create(context.Background(), req)
+	// return err
+	return nil
 }
 
 func (a *AppServer) CreateNodeWithClass(AppID int64, DevEUI, AppEUI, AppKey, Name, Description string, IsClassC bool) error {
@@ -301,28 +285,29 @@ func (a *AppServer) CreateNodeWithClass(AppID int64, DevEUI, AppEUI, AppKey, Nam
 	rxDelay:0
 	rxWindow:"RX1"
 	*/
-	if !isValidHex(DevEUI, 64) {
+	if !utils.IsValidHex(DevEUI, 64) {
 		return ErrInvalidParameterSize
 	}
-	if !isValidHex(AppEUI, 64) {
+	if !utils.IsValidHex(AppEUI, 64) {
 		return ErrInvalidParameterSize
 	}
-	if !isValidHex(AppKey, 128) {
+	if !utils.IsValidHex(AppKey, 128) {
 		return ErrInvalidParameterSize
 	}
 	fmt.Printf("Create: \"%s\" - \"%s\" - \"%s\" - IsClassC=%v\n", DevEUI, AppEUI, AppKey, IsClassC)
-	req := &pb.CreateNodeRequest{
-		ApplicationID:          AppID,
-		DevEUI:                 DevEUI,
-		AppEUI:                 AppEUI,
-		AppKey:                 AppKey,
-		UseApplicationSettings: !IsClassC,
-		IsClassC:               IsClassC,
-		Name:                   Name,
-		Description:            Description,
-	}
-	_, err := a.Node.Create(context.Background(), req)
-	return err
+	// req := &pb.CreateNodeRequest{
+	// 	ApplicationID:          AppID,
+	// 	DevEUI:                 DevEUI,
+	// 	AppEUI:                 AppEUI,
+	// 	AppKey:                 AppKey,
+	// 	UseApplicationSettings: !IsClassC,
+	// 	IsClassC:               IsClassC,
+	// 	Name:                   Name,
+	// 	Description:            Description,
+	// }
+	// _, err := a.Node.Create(context.Background(), req)
+	// return err
+	return nil
 }
 
 // UpdateNode was intended to update a node's info without crushing session keys
@@ -347,42 +332,45 @@ func (a *AppServer) UpdateNode(AppID int64, DevEUI, AppEUI, AppKey, Name, Descri
 	rxDelay:0
 	rxWindow:"RX1"
 	*/
-	if !isValidHex(DevEUI, 64) {
+	if !utils.IsValidHex(DevEUI, 64) {
 		return ErrInvalidParameterSize
 	}
 	// fmt.Printf("UpdateDescription: \"%s\" - \"%s\" - \"%s\"\n", DevEUI, AppEUI, AppKey)
-	req := &pb.UpdateNodeRequest{
-		ApplicationID:          AppID,
-		DevEUI:                 DevEUI,
-		AppEUI:                 AppEUI,
-		AppKey:                 AppKey,
-		UseApplicationSettings: !IsClassC,
-		IsClassC:               IsClassC,
-		Name:                   Name,
-		Description:            Description,
-	}
-	_, err := a.Node.Update(context.Background(), req)
-	return err
+	// req := &pb.UpdateNodeRequest{
+	// 	ApplicationID:          AppID,
+	// 	DevEUI:                 DevEUI,
+	// 	AppEUI:                 AppEUI,
+	// 	AppKey:                 AppKey,
+	// 	UseApplicationSettings: !IsClassC,
+	// 	IsClassC:               IsClassC,
+	// 	Name:                   Name,
+	// 	Description:            Description,
+	// }
+	// _, err := a.Node.Update(context.Background(), req)
+	// return err
+	return nil
 }
 
 // DeleteNode will request to delete a node on the app server
 func (a *AppServer) DeleteNode(DevEUI string) error {
-	req := &pb.DeleteNodeRequest{
-		DevEUI: DevEUI,
-	}
-	_, err := a.Node.Delete(context.Background(), req)
-	return err
+	// req := &pb.DeleteNodeRequest{
+	// 	DevEUI: DevEUI,
+	// }
+	// _, err := a.Node.Delete(context.Background(), req)
+	// return err
+	return nil
 }
 
 func DownlinkMessage(DevEUI string, data []byte) []byte {
-	req := pb.DownlinkQueueItem{
-		DevEUI:    DevEUI,
-		Data:      data,
-		Confirmed: defaultConfirmedDownlink,
-		FPort:     defaultFport,
-	}
-	payload, _ := json.Marshal(req)
-	return payload
+	// req := pb.DownlinkQueueItem{
+	// 	DevEUI:    DevEUI,
+	// 	Data:      data,
+	// 	Confirmed: defaultConfirmedDownlink,
+	// 	FPort:     defaultFport,
+	// }
+	// payload, _ := json.Marshal(req)
+	// return payload
+	return nil
 }
 
 type UplinkMessage struct {
