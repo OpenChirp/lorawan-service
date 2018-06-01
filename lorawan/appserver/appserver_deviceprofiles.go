@@ -89,6 +89,20 @@ func deviceProfileSettingsFromLorawanConfig(c LorawanConfig) deviceProfileSettin
 	return s
 }
 
+func lorawanConfigFromDeviceProfileSettings(s deviceProfileSettings) LorawanConfig {
+	c := LorawanConfig{
+		Class: LorawanClassA,
+	}
+
+	if s.supportsClassB {
+		c.Class = LorawanClassB
+	} else if s.supportsClassC {
+		c.Class = LorawanClassC
+	}
+
+	return c
+}
+
 func pbDeviceProfileToSettings(dp *pb.DeviceProfile) deviceProfileSettings {
 	return deviceProfileSettings{
 		supportsJoin:      dp.SupportsJoin,
@@ -138,6 +152,18 @@ func (a *AppServer) devProfileLoadAll() error {
 		s := pbDeviceProfileToSettings(profile.GetDeviceProfile())
 		m := deviceProfileMeta{
 			ID: p.DeviceProfileID,
+		}
+
+		// Check for conflicting device profiles
+		// Our system only cares about a certain subset of possible device
+		// profile options. If there are multiple existing profiles who share
+		// the same subset of options we are interested in, this is considered
+		// a collision.
+		if _, ok := a.devprof.profs[s]; ok {
+			// This error would indicate that this profile or the one previously
+			// read in are in conflict -- recall that just means that our simple
+			// set of parameters match two different device profiles
+			return errors.New(fmt.Sprintf("Conflicting device profiles found: ID=%s", profile.GetDeviceProfile().DeviceProfileID))
 		}
 		a.devprof.profs[s] = m
 
@@ -266,6 +292,31 @@ func (a *AppServer) devProfileReleaseRef(c LorawanConfig) error {
 	}
 	a.devprof.profs[s] = m
 	return nil
+}
+
+// devProfileFindRef searched the local cache for an associated device
+// profile and returns it's ID. If it currently does not currently exist,
+// we return "".
+// This function is primarily for consistency checking on startup.
+func (a *AppServer) devProfileFindRef(c LorawanConfig) string {
+	s := deviceProfileSettingsFromLorawanConfig(c)
+	m, ok := a.devprof.profs[s]
+	id := ""
+	if ok {
+		id = m.ID
+	}
+	return id
+}
+
+// devProfilesGetReverseCache returns a one-off map from device profile IDs
+// to LorawanConfigs.
+// This function is primarily for synchronization on startup.
+func (a AppServer) devProfilesGetReverseCache() map[string]LorawanConfig {
+	cm := make(map[string]LorawanConfig)
+	for s, m := range a.devprof.profs {
+		cm[m.ID] = lorawanConfigFromDeviceProfileSettings(s)
+	}
+	return cm
 }
 
 func (a *AppServer) GetDeviceProfiles() {
