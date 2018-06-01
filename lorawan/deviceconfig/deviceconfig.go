@@ -61,6 +61,10 @@ func (ocd OCDeviceInfo) OwnerString() string {
 	return ocd.OwnerEmail + "(" + ocd.OwnerName + ")"
 }
 
+func (ocd OCDeviceInfo) Matches(otherocd OCDeviceInfo) bool {
+	return ocd == otherocd
+}
+
 type LorawanConfig struct {
 	DevEUI string
 	AppEUI string
@@ -85,7 +89,12 @@ func NewLorawanConfig(devEUI, appEUI, appKey, class string) LorawanConfig {
 }
 
 func (c LorawanConfig) Matches(otherc LorawanConfig) bool {
-	return c == otherc
+	var nok bool
+	nok = nok || c.DevEUI != otherc.DevEUI
+	// nok = nok || c.AppEUI != otherc.AppEUI
+	nok = nok || c.AppKey != otherc.AppKey
+	nok = nok || c.Class != otherc.Class
+	return !nok
 }
 
 func (c LorawanConfig) CheckParameters() error {
@@ -130,6 +139,12 @@ func (d DeviceConfig) String() string {
 // EncodeDescription generates the description for the lorawan app server
 func (d DeviceConfig) EncodeDescription() string {
 	return fmt.Sprintf("%s - %s", d.Name, d.OwnerString())
+}
+
+func (d DeviceConfig) Matches(otherd DeviceConfig) bool {
+	lcok := d.LorawanConfig.Matches(otherd.LorawanConfig)
+	ociok := d.OCDeviceInfo.Matches(otherd.OCDeviceInfo)
+	return lcok && ociok
 }
 
 /* Functions to compare against app server app node response */
