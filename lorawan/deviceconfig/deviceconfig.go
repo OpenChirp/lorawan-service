@@ -88,6 +88,18 @@ func NewLorawanConfig(devEUI, appEUI, appKey, class string) LorawanConfig {
 	}
 }
 
+func (c *LorawanConfig) SetDevEUI(devEUI string) {
+	c.DevEUI = strings.ToUpper(devEUI)
+}
+
+func (c *LorawanConfig) SetAppEUI(appEUI string) {
+	c.AppEUI = strings.ToUpper(appEUI)
+}
+
+func (c *LorawanConfig) SetAppKey(appKey string) {
+	c.AppKey = strings.ToUpper(appKey)
+}
+
 func (c LorawanConfig) Matches(otherc LorawanConfig) bool {
 	var nok bool
 	nok = nok || c.DevEUI != otherc.DevEUI
