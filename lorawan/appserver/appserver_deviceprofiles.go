@@ -9,9 +9,15 @@ import (
 	pb "github.com/brocaar/lora-app-server/api"
 	. "github.com/openchirp/lorawan-service/lorawan/deviceconfig"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 )
 
 const DevProfModName = "DeviceProfiles"
+
+// ErrDeviceProfileStillInUse indicates that the device profile being deleted
+// is still in use on the remote server
+var ErrDeviceProfileStillInUse = errors.New("Device profile still in use on remote")
 
 var defaultDeviceProfileSettings = deviceProfileSettings{
 	supportsJoin:      true,
@@ -164,6 +170,9 @@ func (a *AppServer) devProfileDelete(m deviceProfileMeta) error {
 	a.log.WithField("module", DevProfModName).Debug("Deleting profile", m)
 	req := &pb.DeleteDeviceProfileRequest{DeviceProfileID: m.ID}
 	if _, err := a.DeviceProfile.Delete(context.Background(), req); err != nil {
+		if grpc.Code(err) == codes.FailedPrecondition {
+			return ErrDeviceProfileStillInUse
+		}
 		return errors.New(fmt.Sprintf("Failed to delete device profile: %v", err))
 	}
 	return nil
