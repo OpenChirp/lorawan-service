@@ -61,6 +61,27 @@ func (ocd OCDeviceInfo) OwnerString() string {
 	return ocd.OwnerEmail + "(" + ocd.OwnerName + ")"
 }
 
+// EncodeDescription generates the description for the lorawan app server
+func (d OCDeviceInfo) EncodeDescription() string {
+	return fmt.Sprintf("%s | %s | %s", d.Name, d.OwnerEmail, d.OwnerName)
+}
+
+func (d *OCDeviceInfo) DecodeDescription(descritption string) {
+	parts := strings.SplitN(descritption, " | ", 3)
+	d.Name = ""
+	d.OwnerEmail = ""
+	d.OwnerName = ""
+	if len(parts) > 0 {
+		d.Name = parts[0]
+	}
+	if len(parts) > 1 {
+		d.OwnerEmail = parts[1]
+	}
+	if len(parts) > 2 {
+		d.OwnerName = parts[2]
+	}
+}
+
 func (ocd OCDeviceInfo) Matches(otherocd OCDeviceInfo) bool {
 	return ocd == otherocd
 }
@@ -146,11 +167,6 @@ func (d DeviceConfig) String() string {
 		d.Name,
 		d.OwnerString(),
 		d.Class)
-}
-
-// EncodeDescription generates the description for the lorawan app server
-func (d DeviceConfig) EncodeDescription() string {
-	return fmt.Sprintf("%s - %s", d.Name, d.OwnerString())
 }
 
 func (d DeviceConfig) Matches(otherd DeviceConfig) bool {
