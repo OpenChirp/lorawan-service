@@ -16,6 +16,13 @@ var ErrDevEUIConflict = errors.New("DevEUI conflicts with another device")
 var ErrDevEUINotFound = errors.New("DevEUI not found")
 
 const DevModName = "DeviceRegistrations"
+
+func decodeOCDeviceInfo(name, description string) OCDeviceInfo {
+	var i OCDeviceInfo
+	i.ID = name
+	i.DecodeDescription(description)
+	return i
+}
 // DeviceSync ensures that the remote server reflects the
 func (a *AppServer) DeviceSync(configs []DeviceConfig) {
 	// needUpdate := list.New()
@@ -57,7 +64,7 @@ func (a *AppServer) DeviceList() ([]DeviceConfig, error) {
 			return nil, errors.New(fmt.Sprintf("Failed to fetch keys for device with DevEUI=%s: %v", dev.DevEUI, err))
 		}
 
-		configs[i].OCDeviceInfo.ID = dev.Name
+		configs[i].OCDeviceInfo = decodeOCDeviceInfo(dev.Name, dev.Description)
 		configs[i].LorawanConfig = devProfLookup[dev.DeviceProfileID]
 		configs[i].LorawanConfig.SetDevEUI(dev.DevEUI)
 		// configs[i].LorawanConfig.SetAppEUI("")
