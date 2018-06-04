@@ -23,18 +23,104 @@ func decodeOCDeviceInfo(name, description string) OCDeviceInfo {
 	i.DecodeDescription(description)
 	return i
 }
-// DeviceSync ensures that the remote server reflects the
-func (a *AppServer) DeviceSync(configs []DeviceConfig) {
-	// needUpdate := list.New()
-	// needAdd := list.New()
-	// needRemoved := list.New()
+
+// DeviceSync ensures that the remote server reflects our current set of configs
+func (a *AppServer) DeviceRegistrationSync(configs []DeviceConfig) ([]error, error) {
+	logitem := a.log.WithField("module", DevModName)
+	logitem.Debug("Syncing device configs")
+
+	errs := make([]error, len(configs))
+
+	type update struct {
+		oldconfig      DeviceConfig
+		newconfigindex int
+	}
+
+	needUpdated := list.New()
+	needRemoved := list.New()
+
+	// a.deveuis = make(map[string]string)
+	a.devProfileClearAll()
+	if err := a.devProfileLoadAll(); err != nil {
+		return nil, err
+	}
+
+	// create a map from OC-ID --> DeviceConfig-Index (OC IDs are unique)
+	localConfigMap := make(map[string]int)
+	for i, c := range configs {
+		localConfigMap[c.ID] = i
+	}
+
+	remoteDevs, err := a.DeviceList()
+	if err != nil {
+		return nil, err
+	}
 
 	/* Setup - Index all devices on remote server. Mark duplicates for removal. */
 
 	/* Match (and sort) configs with remote */
-	/* Update configs that have changed */
+	// need to call devProfileAcquireRef
+	for _, d := range remoteDevs {
+		fmt.Println(d)
+
+		// Run profile acquire now, since we ultimately call
+		// DeviceDeregister or DeviceUpdate.
+		// These both assume it was already  acquired.
+		a.devProfileAcquireRef(d.LorawanConfig)
+
+		index, ok := localConfigMap[d.ID]
+		if !ok {
+			// Mark for removal
+			needRemoved.PushBack(d)
+			continue
+		}
+		delete(localConfigMap, d.ID)
+
+		ld := configs[index]
+
+		// Check if it needs to updated
+		var notmatch bool
+		notmatch = notmatch || !d.LorawanConfig.Matches(ld.LorawanConfig)
+		notmatch = notmatch || d.ID != ld.ID
+		notmatch = notmatch || d.EncodeDescription() != ld.EncodeDescription()
+		if notmatch {
+			// mark for update
+			needUpdated.PushBack(update{d, index})
+			// needUpdated.PushBack(index)
+			continue
+		}
+
+		// must be a clean match
+	}
+
 	/* Prune remote devices that do not exist anymore */
-	/* Add new configs that do not exist on remote server */
+	for d := needRemoved.Front(); d != nil; d = d.Next() {
+		if err := a.DeviceDeregister(d.Value.(DeviceConfig)); err != nil {
+			return nil, err
+		}
+	}
+
+	/* Update configs that have changed -- Can conflict */
+	for d := needUpdated.Front(); d != nil; d = d.Next() {
+		upd := d.Value.(update)
+		localdIndex := upd.newconfigindex
+		oldconfig := upd.oldconfig
+		newconfig := configs[localdIndex]
+		errs[localdIndex] = a.DeviceUpdate(oldconfig, newconfig)
+	}
+
+	/* Add new configs that do not exist on remote server -- Can conflict */
+	for _, localdIndex := range localConfigMap {
+		locald := configs[localdIndex]
+		errs[localdIndex] = a.DeviceRegister(locald)
+	}
+
+	/* Prune extraneous device profiles -- Already cleared extraneous devices */
+	if err := a.devProfilePrune(); err != nil {
+		return nil, err
+	}
+
+	return errs, nil
 }
 
 func (a *AppServer) DeviceList() ([]DeviceConfig, error) {
