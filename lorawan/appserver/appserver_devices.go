@@ -121,14 +121,20 @@ func (a *AppServer) DeviceDeregister(config DeviceConfig) error {
 	logitem := a.log.WithField("module", DevModName)
 	logitem.Debugf("Deregistering device config %v", config)
 
+	/* Use saved DevEUI */
+	deveui := config.DevEUI
+
 	/* Remove Device from Remote */
 	req := &pb.DeleteDeviceRequest{
-		DevEUI: config.DevEUI,
+		DevEUI: deveui,
 	}
 	_, err := a.Device.Delete(context.Background(), req)
-	if grpc.Code(err) == codes.NotFound {
-		// Don't try to release the dev profile
-		return ErrDevEUINotFound
+	if err != nil {
+		if grpc.Code(err) == codes.NotFound {
+			// Don't try to release the dev profile
+			return ErrDevEUINotFound
+		}
+		return err
 	}
 
 	/* Remove Referenced to Device Profile */
