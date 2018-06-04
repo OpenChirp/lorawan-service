@@ -110,7 +110,113 @@ func (a *AppServer) DeviceRegister(config DeviceConfig) error {
 	return err
 }
 
-func (a *AppServer) DeviceUpdate(config DeviceConfig) {
+// DeviceUpdate changes the
+// could conflict
+func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
+	logitem := a.log.WithField("module", DevModName)
+	logitem.Debugf("Updating device config %v --> %v", oldconfig, newconfig)
+
+	olddeveui := oldconfig.DevEUI
+
+	/* Check is DevEUI changed */
+	if olddeveui != newconfig.DevEUI {
+		logitem.Debug("DevEUI needs updating")
+		if err := a.DeviceDeregister(oldconfig); err != nil {
+			return err
+		}
+		return a.DeviceRegister(newconfig)
+	}
+
+	/* Get DeviceConfig from remote */
+	getreq := &pb.GetDeviceRequest{
+		DevEUI: olddeveui,
+	}
+	resp, err := a.Device.Get(context.Background(), getreq)
+	if err != nil {
+		if grpc.Code(err) == codes.NotFound {
+			return ErrDevEUINotFound
+		}
+		return err
+	}
+
+	deveui := newconfig.DevEUI
+
+	/* Check is Device Profile has changed -- Could be comparing to "" if does not yet exist */
+	devProfChanged := resp.DeviceProfileID != a.devProfileFindRef(newconfig.LorawanConfig)
+
+	/* Check if Name or Description changed */
+	nameDescChanged := (resp.Name != newconfig.ID) || (resp.Description != newconfig.EncodeDescription())
+
+	/* If either Device Profile or Name/Description changed form an update request */
+	/* It turns out that you cannot just update one without the other. Both
+	device profile and name/description must be updated together. */
+
+	updateReq := &pb.UpdateDeviceRequest{
+		DevEUI:          deveui,
+		Name:            resp.Name,
+		Description:     resp.Description,
+		DeviceProfileID: resp.DeviceProfileID,
+	}
+
+	if devProfChanged {
+		logitem.Debug("Device Profile needs updating")
+		profid, err := a.devProfileAcquireRef(newconfig.LorawanConfig)
+		if err != nil {
+			return err
+		}
+		updateReq.DeviceProfileID = profid
+	}
+
+	if nameDescChanged {
+		logitem.Debug("Name and/or Description needs updating")
+		updateReq.Name = newconfig.ID
+		updateReq.Description = newconfig.EncodeDescription()
+	}
+
+	_, err = a.Device.Update(context.Background(), updateReq)
+	if err != nil {
+		if grpc.Code(err) == codes.NotFound {
+			return ErrDevEUINotFound
+		}
+		return err
+	}
+
+	if devProfChanged {
+		err := a.devProfileReleaseRef(oldconfig.LorawanConfig)
+		if err != nil {
+			return err
+		}
+	}
+
+	/* Get Device Keys from Remote */
+	keysreq := &pb.GetDeviceKeysRequest{
+		DevEUI: deveui,
+	}
+	keys, err := a.Device.GetKeys(context.Background(), keysreq)
+	if err != nil {
+		return errors.New(fmt.Sprintf("Failed to fetch keys for device with DevEUI=%s: %v", deveui, err))
+	}
+
+	/* Check is AppKey changed */
+	if keys.DeviceKeys.AppKey != newconfig.AppKey {
+		logitem.Debug("AppKey needs updating")
+		keyChangeReq := &pb.UpdateDeviceKeysRequest{
+			DevEUI: deveui,
+			DeviceKeys: &pb.DeviceKeys{
+				AppKey: newconfig.AppKey,
+			},
+		}
+
+		_, err := a.Device.UpdateKeys(context.Background(), keyChangeReq)
+		if err != nil {
+			if grpc.Code(err) == codes.NotFound {
+				return ErrDevEUINotFound
+			}
+			return err
+		}
+	}
+
+	return nil
 }
 
 // DeviceDeregister removes a device and any dependent device profiles
