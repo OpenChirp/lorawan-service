@@ -135,7 +135,7 @@ func run(ctx *cli.Context) error {
 	// possibility of less DeviceConfig being created
 	configs := make([]lorawan.DeviceConfig, 0, len(configUpdates))
 	for i := range configUpdates {
-		devconfig, err := DeviceUpdateAdapter{configUpdates[i]}.GetLorawanDeviceConfig(c)
+		devconfig, err := DeviceUpdateAdapter{configUpdates[i]}.GetDeviceConfig(c)
 		if err != nil {
 			// Had problem fetching device info
 			log.Info(err)
@@ -196,7 +196,7 @@ func run(ctx *cli.Context) error {
 			switch update.Type {
 			case framework.DeviceUpdateTypeAdd:
 				logitem.Debug("Fetching device info")
-				devconfig, err := DeviceUpdateAdapter{update}.GetLorawanDeviceConfig(c)
+				devconfig, err := DeviceUpdateAdapter{update}.GetDeviceConfig(c)
 				if err != nil {
 					// Had problem fetching device info
 					logitem.Info(err)
@@ -207,7 +207,7 @@ func run(ctx *cli.Context) error {
 
 			case framework.DeviceUpdateTypeRem:
 				logitem.Debug("Fetching device info")
-				devconfig, err := DeviceUpdateAdapter{update}.GetLorawanDeviceConfig(nil)
+				devconfig, err := DeviceUpdateAdapter{update}.GetDeviceConfig(nil)
 				if err != nil {
 					// Had problem fetching device info
 					logitem.Info(err)
@@ -218,7 +218,7 @@ func run(ctx *cli.Context) error {
 
 			case framework.DeviceUpdateTypeUpd:
 				logitem.Debug("Fetching device info")
-				devconfig, err := DeviceUpdateAdapter{update}.GetLorawanDeviceConfig(c)
+				devconfig, err := DeviceUpdateAdapter{update}.GetDeviceConfig(c)
 				if err != nil {
 					// Had problem fetching device info
 					logitem.Info(err)

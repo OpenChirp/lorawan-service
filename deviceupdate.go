@@ -33,7 +33,7 @@ func (update DeviceUpdateAdapter) GetClass() LorawanClass {
 	return class
 }
 
-func (update DeviceUpdateAdapter) GetLorawanDeviceConfig(c *framework.ServiceClient) (DeviceConfig, error) {
+func (update DeviceUpdateAdapter) GetDeviceConfig(c *framework.ServiceClient) (DeviceConfig, error) {
 	var config DeviceConfig
 
 	config.ID = update.Id
