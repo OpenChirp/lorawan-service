@@ -24,7 +24,6 @@ import (
 	"github.com/brocaar/lorawan"
 	"github.com/openchirp/framework/pubsub"
 	. "github.com/openchirp/lorawan-service/lorawan/devicemessage"
-	"golang.org/x/net/context"
 )
 
 const (
@@ -34,16 +33,13 @@ const (
 )
 
 type AppServerMQTT struct {
-	appID    int64
-	client   *pubsub.MQTTClient
-	tx       chan DeviceMessageData
-	rx       chan DeviceMessageData
-	join     chan DeviceMessageJoin
-	ack      chan DeviceMessageAck
-	txCtx    context.Context
-	txCancel context.CancelFunc
-
-	log *logrus.Logger
+	appID  int64
+	client *pubsub.MQTTClient
+	tx     chan DeviceMessageData
+	rx     chan DeviceMessageData
+	join   chan DeviceMessageJoin
+	ack    chan DeviceMessageAck
+	log    *logrus.Logger
 }
 
 func NewAppServerMqtt(uri, user, pass string, appID int64) (*AppServerMQTT, error) {
@@ -66,17 +62,9 @@ func NewAppServerMqtt(uri, user, pass string, appID int64) (*AppServerMQTT, erro
 	am.ack = make(chan DeviceMessageAck, channelBuffering)
 
 	/* Launch TX Channel Goroutine */
-	txCtx, txCancel := context.WithCancel(context.Background())
-	am.txCtx = txCtx
-	am.txCancel = txCancel
 	go func(am *AppServerMQTT) {
-		for {
-			select {
-			case <-am.txCtx.Done():
-				return
-			case msg := <-am.tx:
-				am.onTx(msg)
-			}
+		for msg := range am.tx {
+			am.onTx(msg)
 		}
 	}(am)
 
@@ -110,7 +98,10 @@ func NewAppServerMqtt(uri, user, pass string, appID int64) (*AppServerMQTT, erro
 }
 
 func (am *AppServerMQTT) Disconnect() {
-	am.txCancel()
+	close(am.tx)
+	close(am.rx)
+	close(am.join)
+	close(am.ack)
 	am.client.Disconnect()
 }
 
