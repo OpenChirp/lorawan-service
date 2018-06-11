@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/openchirp/framework"
-	"github.com/openchirp/framework/pubsub"
-	"github.com/openchirp/lorawan-service/lorawan"
+	"github.com/openchirp/lorawan-service/lorawan/appserver"
+	. "github.com/openchirp/lorawan-service/lorawan/deviceconfig"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
@@ -17,7 +17,7 @@ import (
 const (
 	runningStatus           = true
 	appServerJWTRefreshTime = time.Minute * time.Duration(30)
-	version                 = "2.0"
+	version                 = "3.0"
 )
 
 const (
@@ -28,15 +28,141 @@ const (
 	configClass              = "Class"
 )
 
-const (
-	defaultLorawanClass = lorawan.LorawanClassA
-)
+func syncconfigs(
+	c *framework.ServiceClient,
+	app *appserver.AppServer,
+	log *logrus.Logger,
+	goodCfgs *map[string]DeviceConfig) error {
+
+	// fetch initial service configs
+	log.Debug("Fetching framework initial device configs")
+	configUpdates, err := c.FetchDeviceConfigsAsUpdates()
+	if err != nil {
+		log.Error("Failed to fetch initial device configs: ", err)
+		return cli.NewExitError(nil, 1)
+	}
+
+	// sync
+
+	// Since we could fail to fetch info for a device, we need to leave the
+	// possibility of less DeviceConfig being created
+	configs := make([]DeviceConfig, 0, len(configUpdates))
+	for i := range configUpdates {
+		devconfig, err := DeviceUpdateAdapter{configUpdates[i]}.GetDeviceConfig(c)
+		if err != nil {
+			// Had problem fetching device info
+			log.Info(err)
+			continue
+		}
+		configs = append(configs, devconfig)
+
+		log.WithField("deveui", devconfig.DevEUI).Debug("Received DevConfig: ", devconfig)
+	}
+
+	err = c.SetStatus("Synchronizing initial registered devices and app server")
+	if err != nil {
+		log.Fatal("Failed to publish service status: ", err)
+		return cli.NewExitError(nil, 1)
+	}
+	log.Debug("Synchronizing initial registered devices and app server")
+
+	cerrors, err := app.DeviceRegistrationSync(configs)
+	if err != nil {
+		log.Fatal(err)
+		return cli.NewExitError(nil, 1)
+	}
+
+	// report any config sync errors
+	for i, e := range cerrors {
+		if e != nil {
+			devConfig := configs[i]
+			c.SetDeviceStatus(devConfig.ID, e)
+		}
+	}
+
+	return nil
+}
+
+func handleupdate(
+	c *framework.ServiceClient,
+	app *appserver.AppServer,
+	log *logrus.Logger,
+	cfgs *map[string]DeviceConfig,
+	update framework.DeviceUpdate) error {
+
+	/* If runningStatus is set, post a service status as an alive msg */
+	if runningStatus {
+		if err := c.SetStatus("Running"); err != nil {
+			log.Error("Failed to publish service status: ", err)
+			return cli.NewExitError(nil, 1)
+		}
+		log.Debug("Published Service Status")
+	}
+
+	logitem := log.WithFields(logrus.Fields{
+		"type":     update.Type,
+		"deviceid": update.Id,
+	})
+
+	switch update.Type {
+	case framework.DeviceUpdateTypeAdd:
+		logitem.Debug("Fetching device info")
+		devconfig, err := DeviceUpdateAdapter{update}.GetDeviceConfig(c)
+		if err != nil {
+			// Had problem fetching device info
+			logitem.Info(err)
+			return nil
+		}
+		logitem.Debug("Process Add")
+		if err := app.DeviceRegister(devconfig); err != nil {
+			c.SetDeviceStatus(devconfig.ID, err)
+		}
+		c.SetDeviceStatus(devconfig.ID, "Updated")
+		(*cfgs)[devconfig.ID] = devconfig
+	case framework.DeviceUpdateTypeRem:
+		logitem.Debug("Fetching device info")
+		devconfig, err := DeviceUpdateAdapter{update}.GetDeviceConfig(nil)
+		if err != nil {
+			// Had problem fetching device info
+			logitem.Info(err)
+			return nil
+		}
+		logitem.Debug("Process Remove")
+		if err := app.DeviceDeregister(devconfig); err != nil {
+			// FIXME: Handle deregister error
+		}
+	case framework.DeviceUpdateTypeUpd:
+		logitem.Debug("Fetching device info")
+		devconfig, err := DeviceUpdateAdapter{update}.GetDeviceConfig(c)
+		if err != nil {
+			// Had problem fetching device info
+			logitem.Info(err)
+			return nil
+		}
+		logitem.Debug("Process Update")
+		oldconfig := (*cfgs)[devconfig.ID]
+		if err := app.DeviceUpdate(oldconfig, devconfig); err != nil {
+
+			return nil
+		}
+		(*cfgs)[devconfig.ID] = devconfig
+	case framework.DeviceUpdateTypeErr:
+		logitem.Errorf(update.Error())
+	}
+
+	return nil
+}
 
 func run(ctx *cli.Context) error {
 
 	/* Set logging level */
 	log := logrus.New()
 	log.SetLevel(logrus.Level(uint32(ctx.Int("log-level"))))
+
+	appServerTarget := ctx.String("app-grpc-server")
+	appServerUser := ctx.String("app-grpc-user")
+	appServerPass := ctx.String("app-grpc-pass")
+	appAppID := ctx.Int64("app-appid")
 
 	log.Info("Starting LoRaWAN Service ")
 
@@ -63,17 +189,16 @@ func run(ctx *cli.Context) error {
 	log.Debug("Published Service Status")
 
 	/* Connect to App Server's MQTT Broker */
-	if ctx.Uint("app-mqtt-qos") < 0 || 2 < ctx.Uint("app-mqtt-qos") {
-		log.Fatal("App Server QoS out of valid range")
-		return cli.NewExitError(nil, 1)
-	}
-	appMqtt, err := pubsub.NewMQTTClient(
+	// if ctx.Uint("app-mqtt-qos") < 0 || 2 < ctx.Uint("app-mqtt-qos") {
+	// 	log.Fatal("App Server QoS out of valid range")
+	// 	return cli.NewExitError(nil, 1)
+	// }
+
+	appMqtt, err := appserver.NewAppServerMqtt(
 		ctx.String("app-mqtt-server"),
 		ctx.String("app-mqtt-user"),
 		ctx.String("app-mqtt-pass"),
-		pubsub.MQTTQoS(ctx.Uint("app-mqtt-qos")),
-		appServerMqttPersistance,
-	)
+		appAppID)
 	if err != nil {
 		log.Fatal("Failed to connect to App Server's MQTT Broker: ", err)
 		return cli.NewExitError(nil, 1)
@@ -81,13 +206,8 @@ func run(ctx *cli.Context) error {
 	defer appMqtt.Disconnect()
 
 	/* Launch LoRaWAN Service */
-
-	appServerTarget := ctx.String("app-grpc-server")
-	appServerUser := ctx.String("app-grpc-user")
-	appServerPass := ctx.String("app-grpc-pass")
-	appAppId := ctx.Int64("app-appid")
-
-	app := lorawan.NewAppServer(appServerTarget)
+	configs := make(map[string]DeviceConfig)
+	app := appserver.NewAppServer(appServerTarget, appAppID, 1, 1)
 	log.Debugf("Connecting to lora app server as %s:%s\n", appServerUser, appServerPass)
 	if err := app.Login(appServerUser, appServerPass); err != nil {
 		log.Fatalf("Failed Login to App Server: %v\n", err)
@@ -96,19 +216,6 @@ func run(ctx *cli.Context) error {
 		log.Fatalf("Failed Connect to App Server: %v\n", err)
 	}
 	defer app.Disconnect()
-
-	lwManager := lorawan.NewManager(
-		pubsub.NewBridge(c, appMqtt, log),
-		app,
-		appAppId,
-		func(config lorawan.DeviceConfig, str string) {
-			err := c.SetDeviceStatus(config.ID, str)
-			if err != nil {
-				log.Errorf("Failed to publish status for deviceid \"%s\": %v", config.ID, err)
-			}
-		},
-		log,
-	)
 
 	/* Start service main device updates stream */
 
@@ -121,45 +228,10 @@ func run(ctx *cli.Context) error {
 	}
 	defer c.StopDeviceUpdates()
 
-	// fetch initial service configs
-	log.Debug("Fetching framework initial device configs")
-	configUpdates, err := c.FetchDeviceConfigsAsUpdates()
-	if err != nil {
-		log.Error("Failed to fetch initial device configs: ", err)
-		return cli.NewExitError(nil, 1)
+	/* Synchronize existing configs */
+	if err := syncconfigs(c, app, log, &configs); err != nil {
+		return err
 	}
-
-	// sync
-
-	// Since we could fail to fetch info for a device, we need to leave the
-	// possibility of less DeviceConfig being created
-	configs := make([]lorawan.DeviceConfig, 0, len(configUpdates))
-	for i := range configUpdates {
-		devconfig, err := DeviceUpdateAdapter{configUpdates[i]}.GetDeviceConfig(c)
-		if err != nil {
-			// Had problem fetching device info
-			log.Info(err)
-			continue
-		}
-		configs = append(configs, devconfig)
-
-		log.WithField("deveui", devconfig.DevEUI).Debug("Received DevConfig: ", devconfig)
-	}
-
-	err = c.SetStatus("Synchronizing initial registered devices and app server")
-	if err != nil {
-		log.Fatal("Failed to publish service status: ", err)
-		return cli.NewExitError(nil, 1)
-	}
-	log.Debug("Synchronizing initial registered devices and app server")
-
-	err = lwManager.Sync(configs)
-	if err != nil {
-		log.Fatal(err)
-		return cli.NewExitError(nil, 1)
-	}
-	configs = nil
-	configUpdates = nil
 
 	/* Post service status indicating I started */
 	err = c.SetStatus("Started")
@@ -178,59 +250,9 @@ func run(ctx *cli.Context) error {
 	for {
 		select {
 		case update := <-updates:
-			/* If runningStatus is set, post a service status as an alive msg */
-			if runningStatus {
-				err = c.SetStatus("Running")
-				if err != nil {
-					log.Error("Failed to publish service status: ", err)
-					return cli.NewExitError(nil, 1)
-				}
-				log.Debug("Published Service Status")
+			if err := handleupdate(c, app, log, &configs, update); err != nil {
+				return err
 			}
-
-			logitem := log.WithFields(logrus.Fields{
-				"type":     update.Type,
-				"deviceid": update.Id,
-			})
-
-			switch update.Type {
-			case framework.DeviceUpdateTypeAdd:
-				logitem.Debug("Fetching device info")
-				devconfig, err := DeviceUpdateAdapter{update}.GetDeviceConfig(c)
-				if err != nil {
-					// Had problem fetching device info
-					logitem.Info(err)
-					continue
-				}
-				logitem.Debug("Process Add")
-				lwManager.ProcessAdd(devconfig)
-
-			case framework.DeviceUpdateTypeRem:
-				logitem.Debug("Fetching device info")
-				devconfig, err := DeviceUpdateAdapter{update}.GetDeviceConfig(nil)
-				if err != nil {
-					// Had problem fetching device info
-					logitem.Info(err)
-					continue
-				}
-				logitem.Debug("Process Remove")
-				lwManager.ProcessRemove(devconfig)
-
-			case framework.DeviceUpdateTypeUpd:
-				logitem.Debug("Fetching device info")
-				devconfig, err := DeviceUpdateAdapter{update}.GetDeviceConfig(c)
-				if err != nil {
-					// Had problem fetching device info
-					logitem.Info(err)
-					continue
-				}
-				logitem.Debug("Process Update")
-				lwManager.ProcessUpdate(devconfig)
-
-			case framework.DeviceUpdateTypeErr:
-				logitem.Errorf(update.Error())
-			}
-
 		case <-time.After(appServerJWTRefreshTime):
 			log.Debug("Reconnecting to app server")
 			if err := app.ReLogin(); err != nil {
