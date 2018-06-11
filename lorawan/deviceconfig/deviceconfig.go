@@ -131,13 +131,13 @@ func (c LorawanConfig) Matches(otherc LorawanConfig) bool {
 }
 
 func (c LorawanConfig) CheckParameters() error {
-	if !utils.IsValidHex(c.DevEUI, 8*16) || (len(c.AppKey) != 32) {
+	if !utils.IsValidHex(c.DevEUI, 8*8) || (len(c.DevEUI) != 16) {
 		return errors.New("Error - DevEUI must be composed of 16 hex characters")
 	}
-	if !utils.IsValidHex(c.AppEUI, 8*16) || (len(c.AppKey) != 32) {
+	if !utils.IsValidHex(c.AppEUI, 8*8) || (len(c.AppEUI) != 16) {
 		return errors.New("Error - AppEUI must be composed of 16 hex characters")
 	}
-	if !utils.IsValidHex(c.AppKey, 8*32) || (len(c.AppKey) != 64) {
+	if !utils.IsValidHex(c.AppKey, 8*16) || (len(c.AppKey) != 32) {
 		return errors.New("Error - AppKey must have 32 hex characters")
 	}
 	if c.Class == LorawanClassUnknown {

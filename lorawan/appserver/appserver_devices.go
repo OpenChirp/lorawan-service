@@ -168,7 +168,13 @@ func (a *AppServer) DeviceList() ([]DeviceConfig, error) {
 // could conflict
 func (a *AppServer) DeviceRegister(config DeviceConfig) error {
 	logitem := a.log.WithField("module", DevModName)
+	logitem = logitem.WithField("ocid", config.ID)
 	logitem.Debugf("Registering device config %v", config)
+
+	if err := config.CheckParameters(); err != nil {
+		logitem.Warnf("Parameter check failed: %v", err)
+		return err
+	}
 
 	profid, err := a.devProfileAcquireRef(config.LorawanConfig)
 	if err != nil {
@@ -207,9 +213,19 @@ func (a *AppServer) DeviceRegister(config DeviceConfig) error {
 // could conflict
 func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 	logitem := a.log.WithField("module", DevModName)
+	logitem = logitem.WithField("ocid", oldconfig.ID)
 	logitem.Debugf("Updating device config %v --> %v", oldconfig, newconfig)
 
 	olddeveui := oldconfig.DevEUI
+
+	/* Make sure new parameters are valid -- Deregister if invalid */
+	if err := newconfig.CheckParameters(); err != nil {
+		logitem.Warnf("Encountered a device update with invalid newconfig: %v", err)
+		if e := a.DeviceDeregister(oldconfig); e != nil {
+			logitem.Warnf("Failed to Deregister device with invalid newconfig: %v", e)
+		}
+		return err // original error
+	}
 
 	/* Check is DevEUI changed */
 	if olddeveui != newconfig.DevEUI {
