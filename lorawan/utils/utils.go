@@ -8,7 +8,8 @@ import (
 )
 
 // IsValidHex indicates if value is a proper hex strings that can be contained
-// with the given number of bits
+// with the given number of bits.
+// This does not check that the hex strings contains exactly number of bits.
 func IsValidHex(value string, bits int) bool {
 	str := strings.ToUpper(value)
 	precZeros := true
