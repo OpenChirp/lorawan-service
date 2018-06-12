@@ -216,16 +216,21 @@ func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 	logitem = logitem.WithField("ocid", oldconfig.ID)
 	logitem.Debugf("Updating device config %v --> %v", oldconfig, newconfig)
 
-	olddeveui := oldconfig.DevEUI
-
 	/* Make sure new parameters are valid -- Deregister if invalid */
 	if err := newconfig.CheckParameters(); err != nil {
-		logitem.Warnf("Encountered a device update with invalid newconfig: %v", err)
+		logitem.Infof("Encountered a device update with invalid newconfig: %v", err)
 		if e := a.DeviceDeregister(oldconfig); e != nil {
-			logitem.Warnf("Failed to Deregister device with invalid newconfig: %v", e)
+			logitem.Infof("Failed to Deregister device with invalid newconfig: %v", e)
 		}
 		return err // original error
 	}
+
+	/* Check if oldconfig was actually valid -- create new if not */
+	if err := oldconfig.CheckParameters(); err != nil {
+		return a.DeviceRegister(newconfig)
+	}
+
+	olddeveui := oldconfig.DevEUI
 
 	/* Check is DevEUI changed */
 	if olddeveui != newconfig.DevEUI {
