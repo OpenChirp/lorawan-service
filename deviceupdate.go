@@ -45,7 +45,8 @@ func (update DeviceUpdateAdapter) GetDeviceConfig(c *framework.ServiceClient) (D
 		}
 		config.Topic = info.Pubsub.Topic
 		config.Name = info.Name
-		config.Owner = info.Owner.Email
+		config.OwnerName = info.Owner.Name
+		config.OwnerEmail = info.Owner.Email
 	}
 
 	config.DevEUI = update.GetDevEUI()
