@@ -8,6 +8,8 @@ import (
 	. "github.com/openchirp/lorawan-service/lorawan/deviceconfig"
 )
 
+const defaultLorawanClass = LorawanClassA
+
 type DeviceUpdateAdapter struct {
 	framework.DeviceUpdate
 }
