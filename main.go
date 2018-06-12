@@ -7,7 +7,6 @@ import (
 
 	"time"
 
-	. "github.com/openchirp/lorawan-service/lorawan/deviceconfig"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
