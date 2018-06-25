@@ -6,8 +6,10 @@ import (
 	"time"
 
 	"github.com/openchirp/framework"
+	"github.com/openchirp/framework/pubsub"
 	"github.com/openchirp/lorawan-service/lorawan/appserver"
 	. "github.com/openchirp/lorawan-service/lorawan/deviceconfig"
+	"github.com/openchirp/lorawan-service/lorawan/pubsubmanager"
 	"github.com/sirupsen/logrus"
 )
 
@@ -34,6 +36,9 @@ type LorawanService struct {
 	app     *appserver.AppServer
 	appMqtt *appserver.AppServerMQTT
 	configs map[string]DeviceConfig // OCID --> DeviceConfig
+
+	ocpubsub  *pubsub.PubSub
+	pubsubman *pubsubmanager.PubSubManager
 
 	fatalerror  chan error
 	stopruntime chan bool
@@ -109,6 +114,11 @@ func (s *LorawanService) startAppserver() error {
 	return nil
 }
 
+func (s *LorawanService) startPubsubManager() error {
+	s.pubsubman = pubsubmanager.NewPubSubManager(s.client, s.appMqtt, s.Log)
+	return nil
+}
+
 func (s *LorawanService) startOCUpdateStream() error {
 	logitem := s.Log.WithField("Module", LorawanServiceModName)
 
@@ -179,6 +189,7 @@ func (s *LorawanService) syncConfigs() error {
 			}
 		} else {
 			s.configs[devConfig.ID] = devConfig
+			s.pubsubman.Add(devConfig)
 			if err := s.client.SetDeviceStatus(devConfig.ID, deviceStatusSuccess); err != nil {
 				logitem.Errorf("Failed to post device status: %v", err)
 			}
@@ -251,6 +262,9 @@ func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
 			return nil
 		}
 		s.configs[devconfig.ID] = devconfig
+		if err := s.pubsubman.Add(devconfig); err != nil {
+			logitem.Errorf("Failed to add device to pubsubmanager: %v", err)
+		}
 		if err := s.client.SetDeviceStatus(devconfig.ID, deviceStatusSuccess); err != nil {
 			logitem.Errorf("Failed to post device status: %v", err)
 		}
@@ -266,6 +280,9 @@ func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
 			return nil
 		}
 		defer delete(s.configs, devconfig.ID)
+		if err := s.pubsubman.Remove(devconfig); err != nil {
+			logitem.Errorf("Failed to remove device from pubsubmanager: %v", err)
+		}
 		oldconfig := s.configs[devconfig.ID]
 		logitem.Debug("Process Remove")
 		if err := s.app.DeviceDeregister(oldconfig); err != nil {
@@ -291,6 +308,9 @@ func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
 					logitem.Errorf("Failed to post device status: %v", e)
 				}
 				return nil
+			}
+			if err := s.pubsubman.Update(oldconfig, devconfig); err != nil {
+				logitem.Errorf("Failed to update device in pubsubmanager: %v", err)
 			}
 			s.configs[devconfig.ID] = devconfig
 			if err := s.client.SetDeviceStatus(devconfig.ID, deviceStatusSuccess); err != nil {
@@ -326,6 +346,10 @@ func (s *LorawanService) Start() error {
 
 	if err := s.startAppserver(); err != nil {
 		return fmt.Errorf("Failed to start app server connection: %v", err)
+	}
+
+	if err := s.startPubsubManager(); err != nil {
+		return fmt.Errorf("Failed to start pubsub manager(bridge): %v", err)
 	}
 
 	if err := s.startOCUpdateStream(); err != nil {
