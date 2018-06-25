@@ -7,6 +7,7 @@ import (
 
 	pb "github.com/brocaar/lora-app-server/api"
 	. "github.com/openchirp/lorawan-service/lorawan/deviceconfig"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -27,7 +28,7 @@ func decodeOCDeviceInfo(name, description string) OCDeviceInfo {
 // DeviceSync ensures that the remote server reflects our current set of configs
 func (a *AppServer) DeviceRegistrationSync(configs []DeviceConfig) ([]error, error) {
 	logitem := a.log.WithField("module", DevModName)
-	logitem.Debug("Syncing device configs")
+	logitem.Info("Syncing device configs")
 
 	errs := make([]error, len(configs))
 
@@ -57,6 +58,7 @@ func (a *AppServer) DeviceRegistrationSync(configs []DeviceConfig) ([]error, err
 	}
 
 	/* Setup - Index all devices on remote server. Mark duplicates for removal. */
+	logitem.Info("Indexing all devices that exist on remote app server")
 
 	/* Match (and sort) configs with remote */
 	// need to call devProfileAcquireRef
@@ -71,6 +73,7 @@ func (a *AppServer) DeviceRegistrationSync(configs []DeviceConfig) ([]error, err
 		index, ok := localConfigMap[d.ID]
 		if !ok {
 			// Mark for removal
+			logitem.Debugf("Marking for removal: %v", d)
 			needRemoved.PushBack(d)
 			continue
 		}
@@ -85,15 +88,18 @@ func (a *AppServer) DeviceRegistrationSync(configs []DeviceConfig) ([]error, err
 		notmatch = notmatch || d.EncodeDescription() != ld.EncodeDescription()
 		if notmatch {
 			// mark for update
+			logitem.Debugf("Marking for update: %v", d)
 			needUpdated.PushBack(update{d, index})
 			// needUpdated.PushBack(index)
 			continue
 		}
 
 		// must be a clean match
+		logitem.Debugf("Accepted device config: %v", d)
 	}
 
 	/* Prune remote devices that do not exist anymore */
+	logitem.Info("Prune remote devices that do not exist anymore")
 	for d := needRemoved.Front(); d != nil; d = d.Next() {
 		if err := a.DeviceDeregister(d.Value.(DeviceConfig)); err != nil {
 			return nil, err
@@ -101,6 +107,7 @@ func (a *AppServer) DeviceRegistrationSync(configs []DeviceConfig) ([]error, err
 	}
 
 	/* Update configs that have changed -- Can conflict */
+	logitem.Info("Update configs that have changed")
 	for d := needUpdated.Front(); d != nil; d = d.Next() {
 		upd := d.Value.(update)
 		localdIndex := upd.newconfigindex
@@ -110,12 +117,14 @@ func (a *AppServer) DeviceRegistrationSync(configs []DeviceConfig) ([]error, err
 	}
 
 	/* Add new configs that do not exist on remote server -- Can conflict */
+	logitem.Info("Add new configs to remove server")
 	for _, localdIndex := range localConfigMap {
 		locald := configs[localdIndex]
 		errs[localdIndex] = a.DeviceRegister(locald)
 	}
 
 	/* Prune extraneous device profiles -- Already cleared extraneous devices */
+	logitem.Info("Prune extra device profiles")
 	if err := a.devProfilePrune(); err != nil {
 		return nil, err
 	}
@@ -215,6 +224,12 @@ func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 	logitem := a.log.WithField("module", DevModName)
 	logitem = logitem.WithField("ocid", oldconfig.ID)
 	logitem.Debugf("Updating device config %v --> %v", oldconfig, newconfig)
+
+	/* Sanity Check */
+	if oldconfig.ID != newconfig.ID {
+		logitem.Fatalf("The sky is falling! DeviceUpdate was given an old and new config with mismatched OC IDsa")
+		return errors.New("DeviceUpdate was given an old and new config with mismatched OC IDs")
+	}
 
 	/* Make sure new parameters are valid -- Deregister if invalid */
 	if err := newconfig.CheckParameters(); err != nil {
