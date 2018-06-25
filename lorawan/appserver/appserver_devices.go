@@ -240,21 +240,13 @@ func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 		return err // original error
 	}
 
-	/* Check if oldconfig was actually valid -- create new if not */
-	if err := oldconfig.CheckParameters(); err != nil {
-		return a.DeviceRegister(newconfig)
-	}
+	// /* Check if oldconfig was actually valid -- if not, create new if not */
+	// if err := oldconfig.CheckParameters(); err != nil {
+	// 	logitem.Debugf("Register new device, since old config was invalid: err: %v | oldconfig: %v | newconfig: %v", err, oldconfig, newconfig)
+	// 	return a.DeviceRegister(newconfig)
+	// }
 
 	olddeveui := oldconfig.DevEUI
-
-	/* Check is DevEUI changed */
-	if olddeveui != newconfig.DevEUI {
-		logitem.Debug("DevEUI needs updating")
-		if err := a.DeviceDeregister(oldconfig); err != nil {
-			return err
-		}
-		return a.DeviceRegister(newconfig)
-	}
 
 	/* Get DeviceConfig from remote */
 	getreq := &pb.GetDeviceRequest{
@@ -263,9 +255,33 @@ func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 	resp, err := a.Device.Get(context.Background(), getreq)
 	if err != nil {
 		if grpc.Code(err) == codes.NotFound {
-			return ErrDevEUINotFound
+			// Try to register a new
+			logitem.Debugf("Old config not found on server, trying to register as new device")
+			return a.DeviceRegister(newconfig)
+			// return ErrDevEUINotFound
 		}
 		return err
+	}
+
+	var serverDeviceConfig DeviceConfig
+	serverDeviceConfig.OCDeviceInfo = decodeOCDeviceInfo(resp.Name, resp.Description)
+
+	/* Device exists on server, but not our own OC ID */
+	if serverDeviceConfig.ID != oldconfig.ID {
+		// Try to register a new
+		logitem.Debugf("Old config is owned byb another device, trying to register as new device")
+		return a.DeviceRegister(newconfig)
+	}
+
+	/* From this point on, we assume the server contains our own oldconfig */
+
+	/* Check if DevEUI changed */
+	if olddeveui != newconfig.DevEUI {
+		logitem.Debug("DevEUI needs updating")
+		if err := a.DeviceDeregister(oldconfig); err != nil {
+			return err
+		}
+		return a.DeviceRegister(newconfig)
 	}
 
 	deveui := newconfig.DevEUI
