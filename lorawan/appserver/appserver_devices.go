@@ -27,7 +27,7 @@ func decodeOCDeviceInfo(name, description string) OCDeviceInfo {
 
 // DeviceSync ensures that the remote server reflects our current set of configs
 func (a *AppServer) DeviceRegistrationSync(configs []DeviceConfig) ([]error, error) {
-	logitem := a.log.WithField("module", DevModName)
+	logitem := a.log.WithField("Module", DevModName)
 	logitem.Info("Syncing device configs")
 
 	errs := make([]error, len(configs))
@@ -95,7 +95,11 @@ func (a *AppServer) DeviceRegistrationSync(configs []DeviceConfig) ([]error, err
 		}
 
 		// must be a clean match
-		logitem.Debugf("Accepted device config: %v", d)
+		logitem.WithFields(logrus.Fields{
+			"OCID":    d.ID,
+			"OCName":  d.Name,
+			"OCOwner": d.OwnerString(),
+		}).Debugf("Accepted device config")
 	}
 
 	/* Prune remote devices that do not exist anymore */
@@ -133,7 +137,7 @@ func (a *AppServer) DeviceRegistrationSync(configs []DeviceConfig) ([]error, err
 }
 
 func (a *AppServer) DeviceList() ([]DeviceConfig, error) {
-	logitem := a.log.WithField("module", DevModName)
+	logitem := a.log.WithField("Module", DevModName)
 	logitem.Debug("Getting remote device list")
 
 	req := &pb.ListDeviceByApplicationIDRequest{
@@ -176,9 +180,14 @@ func (a *AppServer) DeviceList() ([]DeviceConfig, error) {
 
 // could conflict
 func (a *AppServer) DeviceRegister(config DeviceConfig) error {
-	logitem := a.log.WithField("module", DevModName)
-	logitem = logitem.WithField("ocid", config.ID)
-	logitem.Debugf("Registering device config %v", config)
+	logitem := a.log.WithFields(logrus.Fields{
+		"Module":  DevModName,
+		"OCID":    config.ID,
+		"OCName":  config.Name,
+		"OCOwner": config.OwnerString(),
+	})
+
+	logitem.Debugf("Registering device config")
 
 	if err := config.CheckParameters(); err != nil {
 		logitem.Warnf("Parameter check failed: %v", err)
@@ -221,9 +230,17 @@ func (a *AppServer) DeviceRegister(config DeviceConfig) error {
 // DeviceUpdate changes the
 // could conflict
 func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
-	logitem := a.log.WithField("module", DevModName)
-	logitem = logitem.WithField("ocid", oldconfig.ID)
-	logitem.Debugf("Updating device config %v --> %v", oldconfig, newconfig)
+	logitem := a.log.WithFields(logrus.Fields{
+		"Module":     DevModName,
+		"OldOCID":    oldconfig.ID,
+		"OldOCName":  oldconfig.Name,
+		"OldOCOwner": oldconfig.OwnerString(),
+		"OCID":       newconfig.ID,
+		"OCName":     newconfig.Name,
+		"OCOwner":    newconfig.OwnerString(),
+	})
+
+	logitem.Debugf("Updating device config")
 
 	/* Sanity Check */
 	if oldconfig.ID != newconfig.ID {
@@ -363,8 +380,13 @@ func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 // Possible errors can stem from the device not being registered on the
 // remote app server OR from device profiles being out of sync (should be fatal)
 func (a *AppServer) DeviceDeregister(config DeviceConfig) error {
-	logitem := a.log.WithField("module", DevModName)
-	logitem.Debugf("Deregistering device config %v", config)
+	logitem := a.log.WithFields(logrus.Fields{
+		"Module":  DevModName,
+		"OCID":    config.ID,
+		"OCName":  config.Name,
+		"OCOwner": config.OwnerString(),
+	})
+	logitem.Debugf("Deregistering device config")
 
 	/* Use saved DevEUI */
 	deveui := config.DevEUI
@@ -394,7 +416,7 @@ func (a *AppServer) DebugDump() {
 	originalLevel := a.log.Level
 	a.log.Level = logrus.InfoLevel
 
-	logitem := a.log.WithField("module", DevModName).WithField("debug", "dump")
+	logitem := a.log.WithField("Module", DevModName).WithField("Debug", "dump")
 
 	logitem.Infof("addr = %s | user = %s | pass %s | jwt = %s", a.addr, a.user, a.pass, a.jwt)
 	logitem.Infof("DeviceProfileCache:\n%s", a.devprof.String())

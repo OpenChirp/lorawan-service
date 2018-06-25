@@ -11,6 +11,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const LorawanServiceModName = "LorawanService"
+
 type LorawanService struct {
 	AppGRPCServer string
 	AppGRPCUser   string
@@ -40,12 +42,16 @@ type LorawanService struct {
 
 func makelogitem(log *logrus.Logger, config DeviceConfig) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
-		"OCID":   config.ID,
-		"OCName": config.Name,
+		"Module":  LorawanServiceModName,
+		"OCID":    config.ID,
+		"OCName":  config.Name,
+		"OCOwner": config.OwnerString(),
 	})
 }
 
 func (s *LorawanService) startOC() error {
+	logitem := s.Log.WithField("Module", LorawanServiceModName)
+
 	/* Start framework service client */
 	c, err := framework.StartServiceClientStatus(
 		s.OCServer,
@@ -54,23 +60,25 @@ func (s *LorawanService) startOC() error {
 		s.OCToken,
 		"Unexpected disconnect!")
 	if err != nil {
-		s.Log.Error("Failed to StartServiceClient: ", err)
+		logitem.Error("Failed to StartServiceClient: ", err)
 		return err
 	}
-	s.Log.Debug("Started service")
+	logitem.Debug("Started service")
 
 	/* Post service status indicating I am starting */
 	err = c.SetStatus("Starting")
 	if err != nil {
-		s.Log.Error("Failed to publish service status: ", err)
+		logitem.Error("Failed to publish service status: ", err)
 		return err
 	}
-	s.Log.Debug("Published Service Status")
+	logitem.Debug("Published Service Status")
 	s.client = c
 	return nil
 }
 
 func (s *LorawanService) startAppserver() error {
+	logitem := s.Log.WithField("Module", LorawanServiceModName)
+
 	/* Connect to App Server's MQTT Broker */
 	// if ctx.Uint("app-mqtt-qos") < 0 || 2 < ctx.Uint("app-mqtt-qos") {
 	// 	log.Fatal("App Server QoS out of valid range")
@@ -82,7 +90,7 @@ func (s *LorawanService) startAppserver() error {
 		s.AppMQTTPass,
 		s.AppID)
 	if err != nil {
-		s.Log.Fatal("Failed to connect to App Server's MQTT Broker: ", err)
+		logitem.Fatal("Failed to connect to App Server's MQTT Broker: ", err)
 		return err
 	}
 	s.appMqtt = appMqtt
@@ -90,22 +98,24 @@ func (s *LorawanService) startAppserver() error {
 	/* Launch LoRaWAN Service */
 	s.configs = make(map[string]DeviceConfig)
 	s.app = appserver.NewAppServer(s.AppGRPCServer, s.AppID, 1, 1)
-	s.Log.Debugf("Connecting to lora app server as %s:%s\n", s.AppGRPCUser, s.AppGRPCPass)
+	logitem.Debugf("Connecting to lora app server as %s:%s", s.AppGRPCUser, s.AppGRPCPass)
 	if err := s.app.Login(s.AppGRPCUser, s.AppGRPCPass); err != nil {
-		s.Log.Fatalf("Failed Login to App Server: %v\n", err)
+		logitem.Fatalf("Failed Login to App Server: %v\n", err)
 	}
 	if err := s.app.Connect(); err != nil {
-		s.Log.Fatalf("Failed Connect to App Server: %v\n", err)
+		logitem.Fatalf("Failed Connect to App Server: %v\n", err)
 	}
 
 	return nil
 }
 
 func (s *LorawanService) startOCUpdateStream() error {
-	s.Log.Debug("Starting device updates stream")
+	logitem := s.Log.WithField("Module", LorawanServiceModName)
+
+	logitem.Debug("Starting device updates stream")
 	updates, err := s.client.StartDeviceUpdates()
 	if err != nil {
-		s.Log.Error("Failed to start device updates stream: ", err)
+		logitem.Error("Failed to start device updates stream: ", err)
 		return err
 	}
 	s.updates = updates
@@ -113,11 +123,13 @@ func (s *LorawanService) startOCUpdateStream() error {
 }
 
 func (s *LorawanService) syncConfigs() error {
+	logitem := s.Log.WithField("Module", LorawanServiceModName)
+
 	// fetch initial service configs
-	s.Log.Debug("Fetching framework initial device configs")
+	logitem.Debug("Fetching framework initial device configs")
 	configUpdates, err := s.client.FetchDeviceConfigsAsUpdates()
 	if err != nil {
-		s.Log.Error("Failed to fetch initial device configs: ", err)
+		logitem.Error("Failed to fetch initial device configs: ", err)
 		return err
 	}
 
@@ -130,24 +142,29 @@ func (s *LorawanService) syncConfigs() error {
 		devconfig, err := DeviceUpdateAdapter{configUpdates[i]}.GetDeviceConfig(s.client)
 		if err != nil {
 			// Had problem fetching device info
-			s.Log.Info(err)
+			logitem.Info(err)
 			continue
 		}
 		configs = append(configs, devconfig)
 
-		s.Log.WithField("deveui", devconfig.DevEUI).Debug("Received DevConfig: ", devconfig)
+		logitem.WithFields(logrus.Fields{
+			"OCID":    devconfig.ID,
+			"OCName":  devconfig.Name,
+			"OCOwner": devconfig.OwnerString(),
+			"DevEUI":  devconfig.DevEUI,
+		}).Debug("Received DevConfig")
 	}
 
 	err = s.client.SetStatus("Synchronizing initial registered devices and app server")
 	if err != nil {
-		s.Log.Fatal("Failed to publish service status: ", err)
+		logitem.Fatal("Failed to publish service status: ", err)
 		return err
 	}
-	s.Log.Debug("Synchronizing initial registered devices and app server")
+	logitem.Debug("Synchronizing initial registered devices and app server")
 
 	cerrors, err := s.app.DeviceRegistrationSync(configs)
 	if err != nil {
-		s.Log.Fatal(err)
+		logitem.Fatal(err)
 		return err
 	}
 
@@ -173,6 +190,8 @@ func (s *LorawanService) syncConfigs() error {
 func (s *LorawanService) runtime() {
 	defer s.runtimewait.Done()
 
+	logitem := s.Log.WithField("Module", LorawanServiceModName)
+
 	/* Start runtime event loop */
 	for {
 		select {
@@ -185,12 +204,12 @@ func (s *LorawanService) runtime() {
 				return
 			}
 		case <-time.After(appServerJWTRefreshTime):
-			s.Log.Debug("Reconnecting to app server")
+			logitem.Debug("Reconnecting to app server")
 			if err := s.app.ReLogin(); err != nil {
-				s.Log.Fatalf("Failed to relogin the app server: %v\n", err)
+				logitem.Fatalf("Failed to relogin the app server: %v\n", err)
 				err = s.client.SetStatus("Failed to relogin to app server: ", err)
 				if err != nil {
-					s.Log.Error("Failed to publish service status: ", err)
+					logitem.Error("Failed to publish service status: ", err)
 				}
 			}
 		}
@@ -198,16 +217,18 @@ func (s *LorawanService) runtime() {
 }
 
 func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
+	logitem := s.Log.WithField("Module", LorawanServiceModName)
+
 	/* If runningStatus is set, post a service status as an alive msg */
 	if runningStatus {
 		if err := s.client.SetStatus("Running"); err != nil {
-			s.Log.Error("Failed to publish service status: ", err)
+			logitem.Error("Failed to publish service status: ", err)
 			return err
 		}
-		s.Log.Debug("Published Service Status")
+		logitem.Debug("Published Service Status")
 	}
 
-	logitem := s.Log.WithFields(logrus.Fields{
+	logitem = logitem.WithFields(logrus.Fields{
 		"UpdateType": update.Type,
 		"OCID":       update.Id,
 	})
@@ -295,6 +316,8 @@ func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
 }
 
 func (s *LorawanService) Start() error {
+	logitem := s.Log.WithField("Module", LorawanServiceModName)
+
 	if err := s.startOC(); err != nil {
 		return fmt.Errorf("Failed to start OC connection: %v", err)
 	}
@@ -315,7 +338,7 @@ func (s *LorawanService) Start() error {
 	if err := s.client.SetStatus("Started"); err != nil {
 		return fmt.Errorf("Failed to publish service status: %v", err)
 	}
-	s.Log.Debug("Published Service Status")
+	logitem.Debug("Published Service Status")
 
 	s.stopruntime = make(chan bool)
 	s.runtimewait.Add(1)
@@ -325,11 +348,13 @@ func (s *LorawanService) Start() error {
 }
 
 func (s *LorawanService) Stop() error {
-	s.Log.Warning("Shutting down")
+	logitem := s.Log.WithField("Module", LorawanServiceModName)
+
+	logitem.Warning("Shutting down")
 	if err := s.client.SetStatus("Shutting down"); err != nil {
-		s.Log.Error("Failed to publish service status: ", err)
+		logitem.Error("Failed to publish service status: ", err)
 	}
-	s.Log.Info("Published service status")
+	logitem.Info("Published service status")
 
 	s.stopruntime <- true
 	close(s.stopruntime)
