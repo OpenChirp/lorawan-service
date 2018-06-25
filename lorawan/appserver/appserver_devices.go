@@ -240,12 +240,6 @@ func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 		return err // original error
 	}
 
-	// /* Check if oldconfig was actually valid -- if not, create new if not */
-	// if err := oldconfig.CheckParameters(); err != nil {
-	// 	logitem.Debugf("Register new device, since old config was invalid: err: %v | oldconfig: %v | newconfig: %v", err, oldconfig, newconfig)
-	// 	return a.DeviceRegister(newconfig)
-	// }
-
 	olddeveui := oldconfig.DevEUI
 
 	/* Get DeviceConfig from remote */
