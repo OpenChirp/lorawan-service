@@ -168,7 +168,7 @@ func (s *LorawanService) syncConfigs() error {
 		return err
 	}
 
-	// report any config sync errors
+	// report any config sync errors -- add DeviceConfigs that succeed
 	for i, e := range cerrors {
 		devConfig := configs[i]
 		logitem := makelogitem(s.Log, devConfig)
@@ -178,6 +178,7 @@ func (s *LorawanService) syncConfigs() error {
 				logitem.Errorf("Failed to post device status: %v", err)
 			}
 		} else {
+			s.configs[devConfig.ID] = devConfig
 			if err := s.client.SetDeviceStatus(devConfig.ID, deviceStatusSuccess); err != nil {
 				logitem.Errorf("Failed to post device status: %v", err)
 			}
@@ -264,6 +265,7 @@ func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
 			logitem.Errorf("Failed to fetch OC info: %v", err)
 			return nil
 		}
+		defer delete(s.configs, devconfig.ID)
 		oldconfig := s.configs[devconfig.ID]
 		logitem.Debug("Process Remove")
 		if err := s.app.DeviceDeregister(oldconfig); err != nil {
