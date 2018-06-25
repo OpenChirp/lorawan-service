@@ -397,5 +397,18 @@ func (s *LorawanService) FatalError() <-chan error {
 }
 
 func (s *LorawanService) DebugDump() {
+	// Temporarily change log level to info
+	originalLevel := s.Log.Level
+	s.Log.Level = logrus.InfoLevel
+
 	s.app.DebugDump()
+	s.pubsubman.DebugDump()
+
+	logitem := s.Log.WithField("Module", LorawanServiceModName).WithField("Debug", "dump")
+	logitem.Infof("# Dumping ID to Config Maps")
+	for id, config := range s.configs {
+		logitem.Infof("%s ==> DeviceConfig[%v]", id, config)
+	}
+
+	s.Log.Level = originalLevel
 }
