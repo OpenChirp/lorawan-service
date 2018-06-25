@@ -31,7 +31,7 @@ type LorawanService struct {
 	updates <-chan framework.DeviceUpdate
 	app     *appserver.AppServer
 	appMqtt *appserver.AppServerMQTT
-	configs map[string]DeviceConfig
+	configs map[string]DeviceConfig // OCID --> DeviceConfig
 
 	fatalerror  chan error
 	stopruntime chan bool
@@ -299,7 +299,7 @@ func (s *LorawanService) Start() error {
 	}
 
 	if err := s.startAppserver(); err != nil {
-		return fmt.Errorf("Failed to start yapp server connection: %v", err)
+		return fmt.Errorf("Failed to start app server connection: %v", err)
 	}
 
 	if err := s.startOCUpdateStream(); err != nil {
