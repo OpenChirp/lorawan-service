@@ -1,4 +1,4 @@
-package openchirp
+package pubsubmanager
 
 import (
 	"encoding/base64"
