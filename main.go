@@ -59,14 +59,19 @@ func run(ctx *cli.Context) error {
 
 	/* Setup signal channel */
 	signals := make(chan os.Signal)
-	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM, syscall.SIGUSR1)
 
+selectagain:
 	select {
 	case err := <-ls.FatalError():
 		ls.Stop()
 		return cli.NewExitError(err, 1)
 	case sig := <-signals:
 		log.WithField("signal", sig).Info("Received signal")
+		if sig == syscall.SIGUSR1 {
+			ls.DebugDump()
+			goto selectagain
+		}
 		goto cleanup
 	}
 

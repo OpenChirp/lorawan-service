@@ -343,3 +343,7 @@ func (s *LorawanService) Stop() error {
 func (s *LorawanService) FatalError() <-chan error {
 	return s.fatalerror
 }
+
+func (s *LorawanService) DebugDump() {
+	s.app.DebugDump()
+}
