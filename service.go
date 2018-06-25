@@ -171,16 +171,18 @@ func (s *LorawanService) syncConfigs() error {
 }
 
 func (s *LorawanService) runtime() {
+	defer s.runtimewait.Done()
+
 	/* Start runtime event loop */
 	for {
 		select {
 		case <-s.stopruntime:
-			break
+			return
 		case update := <-s.updates:
 			if err := s.processUpdate(update); err != nil {
 				s.fatalerror <- err
 				<-s.stopruntime
-				break
+				return
 			}
 		case <-time.After(appServerJWTRefreshTime):
 			s.Log.Debug("Reconnecting to app server")
@@ -193,7 +195,6 @@ func (s *LorawanService) runtime() {
 			}
 		}
 	}
-	s.runtimewait.Done()
 }
 
 func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
