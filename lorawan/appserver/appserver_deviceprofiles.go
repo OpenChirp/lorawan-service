@@ -176,7 +176,7 @@ func (a *AppServer) devProfileLoadAll() error {
 }
 
 func (a *AppServer) devProfileCreate(s deviceProfileSettings) (deviceProfileMeta, error) {
-	a.log.WithField("module", DevProfModName).Debug("Creating profile", s)
+	a.log.WithField("Module", DevProfModName).Debug("Creating profile", s)
 	req := &pb.CreateDeviceProfileRequest{
 		Name:            s.String(),
 		OrganizationID:  a.orgid,
@@ -193,7 +193,7 @@ func (a *AppServer) devProfileCreate(s deviceProfileSettings) (deviceProfileMeta
 }
 
 func (a *AppServer) devProfileDelete(m deviceProfileMeta) error {
-	a.log.WithField("module", DevProfModName).Debug("Deleting profile", m)
+	a.log.WithField("Module", DevProfModName).Debug("Deleting profile", m)
 	req := &pb.DeleteDeviceProfileRequest{DeviceProfileID: m.ID}
 	if _, err := a.DeviceProfile.Delete(context.Background(), req); err != nil {
 		if grpc.Code(err) == codes.FailedPrecondition {
@@ -210,7 +210,7 @@ func (a *AppServer) devProfileDelete(m deviceProfileMeta) error {
 // This may fail if associated remote devices are still referencing these device
 // profiles.
 func (a *AppServer) devProfilePrune() error {
-	logitem := a.log.WithField("module", DevProfModName)
+	logitem := a.log.WithField("Module", DevProfModName)
 
 	logitem.Debug("Pruning cache and remote device profiles")
 
