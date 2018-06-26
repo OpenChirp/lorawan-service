@@ -287,7 +287,16 @@ func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 	/* From this point on, we assume the server contains our own oldconfig */
 
 	/* Check if DevEUI changed */
-	if olddeveui != newconfig.DevEUI {
+	devEUIChanged := olddeveui != newconfig.DevEUI
+
+	/* Check is Device Profile has changed -- Could be comparing to "" if does not yet exist */
+	devProfChanged := resp.DeviceProfileID != a.devProfileFindRef(newconfig.LorawanConfig)
+
+	/* Check if Name or Description changed */
+	nameDescChanged := (resp.Name != newconfig.ID) || (resp.Description != newconfig.EncodeDescription())
+
+	if devEUIChanged {
+		/* game over - if we get here we must deregister and register new device */
 		logitem.Debug("DevEUI needs updating")
 		if err := a.DeviceDeregister(oldconfig); err != nil {
 			return err
@@ -296,12 +305,6 @@ func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 	}
 
 	deveui := newconfig.DevEUI
-
-	/* Check is Device Profile has changed -- Could be comparing to "" if does not yet exist */
-	devProfChanged := resp.DeviceProfileID != a.devProfileFindRef(newconfig.LorawanConfig)
-
-	/* Check if Name or Description changed */
-	nameDescChanged := (resp.Name != newconfig.ID) || (resp.Description != newconfig.EncodeDescription())
 
 	/* If either Device Profile or Name/Description changed form an update request */
 	/* It turns out that you cannot just update one without the other. Both
