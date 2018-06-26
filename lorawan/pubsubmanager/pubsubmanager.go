@@ -2,6 +2,7 @@ package pubsubmanager
 
 import (
 	"encoding/base64"
+	"fmt"
 	"sync"
 
 	"github.com/openchirp/framework"
@@ -134,11 +135,22 @@ func (m *PubSubManager) txhandler(topic string, payload []byte) {
 	}
 }
 
+func (m *PubSubManager) sanityCheckDeviceConfig(c DeviceConfig) error {
+	if c.Topic == "" {
+		return fmt.Errorf("Given a DeviceConfig without a Topic")
+	}
+	return nil
+}
+
 func (m *PubSubManager) Add(c DeviceConfig) error {
 	logitem := m.log.WithField("Module", PubSubManagerModName)
 	logitem = logitem.WithFields(c.OCDeviceInfo.LogrusFields())
 
 	logitem.Debugf("Adding device")
+
+	if err := m.sanityCheckDeviceConfig(c); err != nil {
+		return err
+	}
 
 	m.cfgFromDeveui.Store(c.DevEUI, &c)
 	m.cfgFromRawtxTopic.Store(topicRawtx(&c), &c)
@@ -160,6 +172,10 @@ func (m *PubSubManager) Remove(c DeviceConfig) error {
 
 	logitem.Debug("Removing device")
 
+	if err := m.sanityCheckDeviceConfig(c); err != nil {
+		return err
+	}
+
 	m.cfgFromDeveui.Delete(c.DevEUI)
 	m.cfgFromRawtxTopic.Delete(topicRawtx(&c))
 
@@ -176,6 +192,14 @@ func (m *PubSubManager) Update(oldconfig, newconfig DeviceConfig) error {
 	logitem = logitem.WithFields(newconfig.OCDeviceInfo.LogrusFields())
 
 	logitem.Debug("Updating device", oldconfig, "to", newconfig)
+
+	if err := m.sanityCheckDeviceConfig(oldconfig); err != nil {
+		return err
+	}
+
+	if err := m.sanityCheckDeviceConfig(newconfig); err != nil {
+		return err
+	}
 
 	m.Remove(oldconfig)
 	m.Add(newconfig)
