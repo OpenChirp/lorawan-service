@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"syscall"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
+	"github.com/wercker/journalhook"
 )
 
 const (
@@ -35,6 +37,10 @@ func run(ctx *cli.Context) error {
 	/* Set logging level */
 	log := logrus.New()
 	log.SetLevel(logrus.Level(uint32(ctx.Int("log-level"))))
+	if ctx.Bool("systemd") {
+		log.AddHook(&journalhook.JournalHook{})
+		log.Out = ioutil.Discard
+	}
 
 	/* Startup LoRaWAN server */
 	ls := LorawanService{
@@ -116,6 +122,11 @@ func main() {
 			Value:  4,
 			Usage:  "debug=5, info=4, warning=3, error=2, fatal=1, panic=0",
 			EnvVar: "LOG_LEVEL",
+		},
+		cli.BoolFlag{
+			Name:   "systemd",
+			Usage:  "Indicates that this service can use systemd specific interfaces.",
+			EnvVar: "SYSTEMD",
 		},
 		/* Communication to LoRaWAN App Server */
 		cli.StringFlag{
