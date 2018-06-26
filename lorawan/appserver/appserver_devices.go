@@ -187,8 +187,10 @@ func (a *AppServer) DeviceRegister(config DeviceConfig) error {
 		return err
 	}
 
+	logitem.Debug("Acquire device profile")
 	profid, err := a.devProfileAcquireRef(config.LorawanConfig)
 	if err != nil {
+		logitem.Errorf("Failed to acquire device profile: %v", err)
 		return err
 	}
 	req := &pb.CreateDeviceRequest{
@@ -200,10 +202,13 @@ func (a *AppServer) DeviceRegister(config DeviceConfig) error {
 	}
 	_, err = a.Device.Create(context.Background(), req)
 	if err != nil {
+		logitem.Debug("Registration failed. Releasing device profile")
 		a.devProfileReleaseRef(config.LorawanConfig)
 		if grpc.Code(err) == codes.AlreadyExists {
+			logitem.Warnf("Registration failed: %v", ErrDevEUIConflict)
 			return ErrDevEUIConflict
 		}
+		logitem.Warnf("Registration failed: %v", err)
 		return err
 	}
 
@@ -310,7 +315,7 @@ func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 	}
 
 	if devProfChanged {
-		logitem.Debug("Device Profile needs updating")
+		logitem.Debug("Device Profile needs updating. Acquiring new device profile")
 		profid, err := a.devProfileAcquireRef(newconfig.LorawanConfig)
 		if err != nil {
 			return err
@@ -333,6 +338,7 @@ func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 	}
 
 	if devProfChanged {
+		logitem.Debug("Releasing old device profile")
 		err := a.devProfileReleaseRef(oldconfig.LorawanConfig)
 		if err != nil {
 			return err
@@ -358,6 +364,7 @@ func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 			},
 		}
 
+		logitem.Debug("Initiating key update")
 		_, err := a.Device.UpdateKeys(context.Background(), keyChangeReq)
 		if err != nil {
 			if grpc.Code(err) == codes.NotFound {

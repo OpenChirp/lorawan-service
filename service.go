@@ -254,7 +254,7 @@ func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
 	logitem = logitem.WithFields(devconfig.LogrusFields())
 
 	processadd := func() error {
-		logitem.Debug("Process Add")
+		logitem.Info("Process Add")
 		if err := s.app.DeviceRegister(devconfig); err != nil {
 			logitem.Infof("Failed to add device config: %v", err)
 			if e := s.client.SetDeviceStatus(devconfig.ID, err); e != nil {
@@ -274,7 +274,7 @@ func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
 	}
 
 	processremove := func() error {
-		logitem.Debug("Process Remove")
+		logitem.Info("Process Remove")
 		defer delete(s.configs, devconfig.ID)
 		if err := s.pubsubman.Remove(devconfig); err != nil {
 			logitem.Errorf("Failed to remove device from pubsubmanager: %v", err)
@@ -288,7 +288,7 @@ func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
 	}
 
 	processupdate := func() error {
-		logitem.Debug("Process Update")
+		logitem.Info("Process Update")
 		if oldconfig, ok := s.configs[devconfig.ID]; ok {
 			if err := s.app.DeviceUpdate(oldconfig, devconfig); err != nil {
 				logitem.Infof("Failed to update device config: %v", err)

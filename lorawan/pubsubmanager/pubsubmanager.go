@@ -191,7 +191,7 @@ func (m *PubSubManager) Update(oldconfig, newconfig DeviceConfig) error {
 	})
 	logitem = logitem.WithFields(newconfig.OCDeviceInfo.LogrusFields())
 
-	logitem.Debug("Updating device", oldconfig, "to", newconfig)
+	logitem.Debug("Updating device")
 
 	if err := m.sanityCheckDeviceConfig(oldconfig); err != nil {
 		return err
