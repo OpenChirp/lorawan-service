@@ -359,7 +359,7 @@ func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 	}
 	keys, err := a.Device.GetKeys(context.Background(), keysreq)
 	if err != nil {
-		return errors.New(fmt.Sprintf("Failed to fetch keys for device with DevEUI=%s: %v", deveui, err))
+		return fmt.Errorf("Failed to fetch keys for device with DevEUI=%s: %v", deveui, err)
 	}
 
 	/* Check is AppKey changed */

@@ -298,6 +298,7 @@ func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
 					logitem.Errorf("Failed to remove device from pubsubmanager: %v", err)
 				}
 				delete(s.configs, devconfig.ID)
+
 				if e := s.client.SetDeviceStatus(devconfig.ID, err); e != nil {
 					logitem.Errorf("Failed to post device status: %v", e)
 				}
