@@ -203,7 +203,9 @@ func (a *AppServer) DeviceRegister(config DeviceConfig) error {
 	_, err = a.Device.Create(context.Background(), req)
 	if err != nil {
 		logitem.Debug("Registration failed. Releasing device profile")
-		a.devProfileReleaseRef(config.LorawanConfig)
+		if err := a.devProfileReleaseRef(config.LorawanConfig); err != nil {
+			logitem.Errorf("Failed to release device profile: %v", err)
+		}
 		if grpc.Code(err) == codes.AlreadyExists {
 			logitem.Warnf("Registration failed: %v", ErrDevEUIConflict)
 			return ErrDevEUIConflict
