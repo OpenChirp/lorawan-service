@@ -63,15 +63,7 @@ func (a *AppServer) DeviceRegistrationSync(configs []DeviceConfig) ([]error, err
 	/* Match (and sort) configs with remote */
 	// need to call devProfileAcquireRef
 	for _, d := range remoteDevs {
-		logitem := logitem.WithFields(logrus.Fields{
-			"OCID":    d.ID,
-			"OCName":  d.Name,
-			"OCOwner": d.OwnerString(),
-			"DevEUI":  d.LorawanConfig.DevEUI,
-			"AppEUI":  d.LorawanConfig.AppEUI,
-			"AppKey":  d.LorawanConfig.AppKey,
-			"Class":   d.LorawanConfig.Class,
-		})
+		logitem := logitem.WithFields(d.LogrusFields())
 
 		logitem.Info("Found device")
 
@@ -186,16 +178,7 @@ func (a *AppServer) DeviceList() ([]DeviceConfig, error) {
 
 // could conflict
 func (a *AppServer) DeviceRegister(config DeviceConfig) error {
-	logitem := a.log.WithFields(logrus.Fields{
-		"Module":  DevModName,
-		"OCID":    config.ID,
-		"OCName":  config.Name,
-		"OCOwner": config.OwnerString(),
-		"DevEUI":  config.LorawanConfig.DevEUI,
-		"AppEUI":  config.LorawanConfig.AppEUI,
-		"AppKey":  config.LorawanConfig.AppKey,
-		"Class":   config.LorawanConfig.Class,
-	})
+	logitem := a.log.WithField("Module", DevModName).WithFields(config.LogrusFields())
 
 	logitem.Debugf("Registering device config")
 
@@ -240,9 +223,8 @@ func (a *AppServer) DeviceRegister(config DeviceConfig) error {
 // DeviceUpdate changes the
 // could conflict
 func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
-	logitem := a.log.WithFields(logrus.Fields{
-		"Module": DevModName,
-
+	logitem := a.log.WithField("Module", DevModName)
+	logitem = logitem.WithFields(logrus.Fields{
 		"OldOCID":    oldconfig.ID,
 		"OldOCName":  oldconfig.Name,
 		"OldOCOwner": oldconfig.OwnerString(),
@@ -250,15 +232,8 @@ func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 		"OldAppEUI":  oldconfig.LorawanConfig.AppEUI,
 		"OldAppKey":  oldconfig.LorawanConfig.AppKey,
 		"OldClass":   oldconfig.LorawanConfig.Class,
-
-		"OCID":    newconfig.ID,
-		"OCName":  newconfig.Name,
-		"OCOwner": newconfig.OwnerString(),
-		"DevEUI":  newconfig.LorawanConfig.DevEUI,
-		"AppEUI":  newconfig.LorawanConfig.AppEUI,
-		"AppKey":  newconfig.LorawanConfig.AppKey,
-		"Class":   newconfig.LorawanConfig.Class,
 	})
+	logitem = logitem.WithFields(newconfig.LogrusFields())
 
 	logitem.Info("Updating device config")
 
@@ -400,16 +375,7 @@ func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 // Possible errors can stem from the device not being registered on the
 // remote app server OR from device profiles being out of sync (should be fatal)
 func (a *AppServer) DeviceDeregister(config DeviceConfig) error {
-	logitem := a.log.WithFields(logrus.Fields{
-		"Module":  DevModName,
-		"OCID":    config.ID,
-		"OCName":  config.Name,
-		"OCOwner": config.OwnerString(),
-		"DevEUI":  config.LorawanConfig.DevEUI,
-		"AppEUI":  config.LorawanConfig.AppEUI,
-		"AppKey":  config.LorawanConfig.AppKey,
-		"Class":   config.LorawanConfig.Class,
-	})
+	logitem := a.log.WithField("Module", DevModName).WithFields(config.LogrusFields())
 
 	logitem.Debugf("Deregistering device config")
 
