@@ -135,12 +135,9 @@ func (m *PubSubManager) txhandler(topic string, payload []byte) {
 }
 
 func (m *PubSubManager) Add(c DeviceConfig) error {
-	logitem := m.log.WithFields(logrus.Fields{
-		"Module":  PubSubManagerModName,
-		"OCID":    c.ID,
-		"OCName":  c.Name,
-		"OCOwner": c.OwnerString(),
-	})
+	logitem := m.log.WithField("Module", PubSubManagerModName)
+	logitem = logitem.WithFields(c.OCDeviceInfo.LogrusFields())
+
 	logitem.Debugf("Adding device")
 
 	m.cfgFromDeveui.Store(c.DevEUI, &c)
@@ -158,12 +155,9 @@ func (m *PubSubManager) Add(c DeviceConfig) error {
 }
 
 func (m *PubSubManager) Remove(c DeviceConfig) error {
-	logitem := m.log.WithFields(logrus.Fields{
-		"Module":  PubSubManagerModName,
-		"OCID":    c.ID,
-		"OCName":  c.Name,
-		"OCOwner": c.OwnerString(),
-	})
+	logitem := m.log.WithField("Module", PubSubManagerModName)
+	logitem = logitem.WithFields(c.OCDeviceInfo.LogrusFields())
+
 	logitem.Debug("Removing device", c)
 
 	m.cfgFromDeveui.Delete(c.DevEUI)
@@ -173,15 +167,14 @@ func (m *PubSubManager) Remove(c DeviceConfig) error {
 }
 
 func (m *PubSubManager) Update(oldconfig, newconfig DeviceConfig) error {
-	logitem := m.log.WithFields(logrus.Fields{
-		"Module":     PubSubManagerModName,
+	logitem := m.log.WithField("Module", PubSubManagerModName)
+	logitem = logitem.WithFields(logrus.Fields{
 		"OldOCID":    oldconfig.ID,
 		"OldOCName":  oldconfig.Name,
 		"OldOCOwner": oldconfig.OwnerString(),
-		"OCID":       newconfig.ID,
-		"OCName":     newconfig.Name,
-		"OCOwner":    newconfig.OwnerString(),
 	})
+	logitem = logitem.WithFields(newconfig.OCDeviceInfo.LogrusFields())
+
 	logitem.Debug("Updating device", oldconfig, "to", newconfig)
 
 	m.Remove(oldconfig)
