@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/openchirp/lorawan-service/lorawan/utils"
+	"github.com/sirupsen/logrus"
 )
 
 type LorawanClass int
@@ -63,6 +64,16 @@ func (ocd OCDeviceInfo) OwnerString() string {
 // EncodeDescription generates the description for the lorawan app server
 func (d OCDeviceInfo) EncodeDescription() string {
 	return fmt.Sprintf("%s | %s | %s", d.Name, d.OwnerEmail, d.OwnerName)
+}
+
+// LogrusFields returns the OCDeviceInfo fields as loggable Logrus Fields
+func (d OCDeviceInfo) LogrusFields() logrus.Fields {
+	return logrus.Fields{
+		"OCID":    d.ID,
+		"OCName":  d.Name,
+		"OCOwner": d.OwnerString(),
+		"OCTopic": d.Topic,
+	}
 }
 
 func (d *OCDeviceInfo) DecodeDescription(descritption string) {
@@ -145,6 +156,16 @@ func (c LorawanConfig) CheckParameters() error {
 	return nil
 }
 
+// LogrusFields returns the LorawanConfig fields as loggable Logrus Fields
+func (c LorawanConfig) LogrusFields() logrus.Fields {
+	return logrus.Fields{
+		"DevEUI": c.DevEUI,
+		"AppEUI": c.AppEUI,
+		"AppKey": c.AppKey,
+		"Class":  c.Class,
+	}
+}
+
 type DeviceConfig struct {
 	OCDeviceInfo
 	LorawanConfig
@@ -167,3 +188,12 @@ func (d DeviceConfig) Matches(otherd DeviceConfig) bool {
 	return lcok && ociok
 }
 
+// LogrusFields returns all DeviceConfig fields as loggable Logrus Fields
+func (d DeviceConfig) LogrusFields() logrus.Fields {
+	var fields logrus.Fields
+	fields = d.OCDeviceInfo.LogrusFields()
+	for k, v := range d.LorawanConfig.LogrusFields() {
+		fields[k] = v
+	}
+	return fields
+}
