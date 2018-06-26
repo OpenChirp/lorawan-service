@@ -123,7 +123,7 @@ func (s *LorawanService) startPubsubManager() error {
 func (s *LorawanService) startOCUpdateStream() error {
 	logitem := s.Log.WithField("Module", LorawanServiceModName)
 
-	logitem.Debug("Starting device updates stream")
+	logitem.Info("Starting device updates stream")
 	updates, err := s.client.StartDeviceUpdates()
 	if err != nil {
 		logitem.Error("Failed to start device updates stream: ", err)
@@ -137,7 +137,7 @@ func (s *LorawanService) syncConfigs() error {
 	logitem := s.Log.WithField("Module", LorawanServiceModName)
 
 	// fetch initial service configs
-	logitem.Debug("Fetching framework initial device configs")
+	logitem.Info("Fetching framework initial device configs")
 	configUpdates, err := s.client.FetchDeviceConfigsAsUpdates()
 	if err != nil {
 		logitem.Error("Failed to fetch initial device configs: ", err)
