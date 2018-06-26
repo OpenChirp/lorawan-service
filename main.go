@@ -6,6 +6,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/coreos/go-systemd/daemon"
+
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -34,10 +36,12 @@ const (
 
 func run(ctx *cli.Context) error {
 
+	systemdIntegration := ctx.Bool("systemd")
+
 	/* Set logging level */
 	log := logrus.New()
 	log.SetLevel(logrus.Level(uint32(ctx.Int("log-level"))))
-	if ctx.Bool("systemd") {
+	if systemdIntegration {
 		log.AddHook(&journalhook.JournalHook{})
 		log.Out = ioutil.Discard
 	}
@@ -62,6 +66,9 @@ func run(ctx *cli.Context) error {
 		return cli.NewExitError(err, 1)
 	}
 	log.Info("Service has started")
+	if systemdIntegration {
+		daemon.SdNotify(false, daemon.SdNotifyReady)
+	}
 
 	/* Setup signal channel */
 	signals := make(chan os.Signal)
@@ -83,6 +90,9 @@ selectagain:
 
 cleanup:
 	ls.Stop()
+	if systemdIntegration {
+		daemon.SdNotify(false, daemon.SdNotifyStopping)
+	}
 	return nil
 }
 
