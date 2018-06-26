@@ -158,7 +158,7 @@ func (m *PubSubManager) Remove(c DeviceConfig) error {
 	logitem := m.log.WithField("Module", PubSubManagerModName)
 	logitem = logitem.WithFields(c.OCDeviceInfo.LogrusFields())
 
-	logitem.Debug("Removing device", c)
+	logitem.Debug("Removing device")
 
 	m.cfgFromDeveui.Delete(c.DevEUI)
 	m.cfgFromRawtxTopic.Delete(topicRawtx(&c))
