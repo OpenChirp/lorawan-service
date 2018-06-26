@@ -329,12 +329,15 @@ func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 		updateReq.Description = newconfig.EncodeDescription()
 	}
 
-	_, err = a.Device.Update(context.Background(), updateReq)
-	if err != nil {
-		if grpc.Code(err) == codes.NotFound {
-			return ErrDevEUINotFound
+	if devProfChanged || nameDescChanged {
+		logitem.Debug("Initialing update for name/description and/or device profile")
+		_, err = a.Device.Update(context.Background(), updateReq)
+		if err != nil {
+			if grpc.Code(err) == codes.NotFound {
+				return ErrDevEUINotFound
+			}
+			return err
 		}
-		return err
 	}
 
 	if devProfChanged {
