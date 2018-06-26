@@ -58,6 +58,9 @@ type OCDeviceInfo struct {
 }
 
 func (ocd OCDeviceInfo) OwnerString() string {
+	if ocd.OwnerEmail == "" && ocd.OwnerName == "" {
+		return ""
+	}
 	return ocd.OwnerEmail + "(" + ocd.OwnerName + ")"
 }
 
