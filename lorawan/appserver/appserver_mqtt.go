@@ -42,11 +42,10 @@ type AppServerMQTT struct {
 	log    *logrus.Logger
 }
 
-func NewAppServerMqtt(uri, user, pass string, appID int64) (*AppServerMQTT, error) {
+func NewAppServerMqtt(uri, user, pass string, appID int64, log *logrus.Logger) (*AppServerMQTT, error) {
 	am := new(AppServerMQTT)
 	am.appID = appID
-	am.log = logrus.New()
-	am.log.Level = 5
+	am.log = log
 
 	/* Setup MQTT Client */
 	client, err := pubsub.NewMQTTClient(uri, user, pass, defaultQOS, defaultPersistance)

@@ -93,7 +93,8 @@ func (s *LorawanService) startAppserver() error {
 		s.AppMQTTBroker,
 		s.AppMQTTUser,
 		s.AppMQTTPass,
-		s.AppID)
+		s.AppID,
+		s.Log)
 	if err != nil {
 		logitem.Fatal("Failed to connect to App Server's MQTT Broker: ", err)
 		return err
@@ -102,7 +103,7 @@ func (s *LorawanService) startAppserver() error {
 
 	/* Launch LoRaWAN Service */
 	s.configs = make(map[string]DeviceConfig)
-	s.app = appserver.NewAppServer(s.AppGRPCServer, s.AppID, 1, 1)
+	s.app = appserver.NewAppServer(s.AppGRPCServer, s.AppID, 1, 1, s.Log)
 	logitem.Debugf("Connecting to lora app server as %s:%s", s.AppGRPCUser, s.AppGRPCPass)
 	if err := s.app.Login(s.AppGRPCUser, s.AppGRPCPass); err != nil {
 		logitem.Fatalf("Failed Login to App Server: %v\n", err)

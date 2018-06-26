@@ -51,9 +51,7 @@ type AppServer struct {
 	log           *logrus.Logger
 }
 
-func NewAppServer(address string, appID, organizationID, networkServerID int64) *AppServer {
-	log := logrus.New()
-	log.Level = 5
+func NewAppServer(address string, appID, organizationID, networkServerID int64, log *logrus.Logger) *AppServer {
 	return &AppServer{
 		addr:    address,
 		appid:   appID,
