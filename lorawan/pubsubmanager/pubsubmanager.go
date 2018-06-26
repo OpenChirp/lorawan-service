@@ -184,24 +184,22 @@ func (m *PubSubManager) Update(oldconfig, newconfig DeviceConfig) error {
 }
 
 func (m *PubSubManager) DebugDump() {
-	// Temporarily change log level to info
-	originalLevel := m.log.Level
-	m.log.Level = logrus.InfoLevel
-
 	logitem := m.log.WithField("Module", PubSubManagerModName)
 	logitem = logitem.WithField("Debug", "dump")
 
-	logitem.Infof("# Dumping ConfigFromDevEUI")
+	logitem.Debugf("# Dumping ConfigFromDevEUI")
 	m.cfgFromDeveui.Range(func(key, value interface{}) bool {
-		logitem.Infof("key = %v | value %v", key, value)
+		devconfig := value.(*DeviceConfig)
+		logitem := logitem.WithFields(devconfig.LogrusFields())
+		logitem.Debugf("Key: DevEUI = %v", key)
 		return true
 	})
 
-	logitem.Infof("# Dumping ConfigFromRawRXTopic")
+	logitem.Debugf("# Dumping ConfigFromRawRXTopic")
 	m.cfgFromRawtxTopic.Range(func(key, value interface{}) bool {
-		logitem.Infof("key = %v | value %v", key, value)
+		devconfig := value.(*DeviceConfig)
+		logitem := logitem.WithFields(devconfig.LogrusFields())
+		logitem.Debugf("Key: RawRXTopic = %v", key)
 		return true
 	})
-
-	m.log.Level = originalLevel
 }

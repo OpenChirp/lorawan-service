@@ -403,14 +403,8 @@ func (a *AppServer) DeviceDeregister(config DeviceConfig) error {
 }
 
 func (a *AppServer) DebugDump() {
-	// Temporarily change log level to info
-	originalLevel := a.log.Level
-	a.log.Level = logrus.InfoLevel
-
 	logitem := a.log.WithField("Module", DevModName).WithField("Debug", "dump")
 
-	logitem.Infof("addr = %s | user = %s | pass %s | jwt = %s", a.addr, a.user, a.pass, a.jwt)
-	logitem.Infof("DeviceProfileCache:\n%s", a.devprof.String())
-
-	a.log.Level = originalLevel
+	logitem.Debugf("addr = %s | user = %s | pass %s | jwt = %s", a.addr, a.user, a.pass, a.jwt)
+	logitem.Debugf("DeviceProfileCache:\n%s", a.devprof.String())
 }
