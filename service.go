@@ -158,12 +158,10 @@ func (s *LorawanService) syncConfigs() error {
 		}
 		configs = append(configs, devconfig)
 
-		logitem.WithFields(logrus.Fields{
-			"OCID":    devconfig.ID,
-			"OCName":  devconfig.Name,
-			"OCOwner": devconfig.OwnerString(),
-			"DevEUI":  devconfig.DevEUI,
-		}).Debug("Received DevConfig")
+		// Local logitem
+		logitem := logitem.WithFields(devconfig.OCDeviceInfo.LogrusFields())
+		logitem = logitem.WithField("DevEUI", devconfig.DevEUI)
+		logitem.Debug("Received DevConfig")
 	}
 
 	err = s.client.SetStatus("Synchronizing initial registered devices and app server")
@@ -230,7 +228,11 @@ func (s *LorawanService) runtime() {
 }
 
 func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
-	logitem := s.Log.WithField("Module", LorawanServiceModName)
+	logitem := s.Log.WithFields(logrus.Fields{
+		"Module":     LorawanServiceModName,
+		"UpdateType": update.Type,
+		"OCID":       update.Id,
+	})
 
 	/* If runningStatus is set, post a service status as an alive msg */
 	if runningStatus {
@@ -241,10 +243,6 @@ func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
 		logitem.Debug("Published Service Status")
 	}
 
-	logitem = logitem.WithFields(logrus.Fields{
-		"UpdateType": update.Type,
-		"OCID":       update.Id,
-	})
 
 	processadd := func() error {
 		logitem.Debug("Fetching device info")
@@ -273,6 +271,7 @@ func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
 	}
 
 	processremove := func() error {
+		logitem.Debug("Process Remove")
 		logitem.Debug("Fetching device info")
 		devconfig, err := DeviceUpdateAdapter{update}.GetDeviceConfig(nil)
 		if err != nil {
@@ -285,7 +284,6 @@ func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
 			logitem.Errorf("Failed to remove device from pubsubmanager: %v", err)
 		}
 		oldconfig := s.configs[devconfig.ID]
-		logitem.Debug("Process Remove")
 		if err := s.app.DeviceDeregister(oldconfig); err != nil {
 			logitem.Infof("Failed to deregister device config: %v", err)
 			return nil
