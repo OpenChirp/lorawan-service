@@ -40,7 +40,8 @@ func (update DeviceUpdateAdapter) GetDeviceConfig(c *framework.ServiceClient) (D
 
 	config.ID = update.Id
 
-	if c != nil {
+	switch update.Type {
+	case framework.DeviceUpdateTypeAdd | framework.DeviceUpdateTypeUpd:
 		info, err := c.FetchDeviceInfo(update.Id)
 		if err != nil {
 			return config, fmt.Errorf("Deviceid \"%s\" was deleted before we could fetch it's config. Skipping.", update.Id)

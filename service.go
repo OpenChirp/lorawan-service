@@ -243,15 +243,17 @@ func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
 		logitem.Debug("Published Service Status")
 	}
 
+	logitem.Debug("Fetching device info")
+	devconfig, err := DeviceUpdateAdapter{update}.GetDeviceConfig(s.client)
+	if err != nil {
+		// Had problem fetching device info
+		logitem.Errorf("Failed to fetch OC info: %v", err)
+		return nil
+	}
+
+	logitem = logitem.WithFields(devconfig.LogrusFields())
 
 	processadd := func() error {
-		logitem.Debug("Fetching device info")
-		devconfig, err := DeviceUpdateAdapter{update}.GetDeviceConfig(s.client)
-		if err != nil {
-			// Had problem fetching device info
-			logitem.Errorf("Failed to fetch OC info: %v", err)
-			return nil
-		}
 		logitem.Debug("Process Add")
 		if err := s.app.DeviceRegister(devconfig); err != nil {
 			logitem.Infof("Failed to add device config: %v", err)
@@ -267,18 +269,12 @@ func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
 		if err := s.client.SetDeviceStatus(devconfig.ID, deviceStatusSuccess); err != nil {
 			logitem.Errorf("Failed to post device status: %v", err)
 		}
+
 		return nil
 	}
 
 	processremove := func() error {
 		logitem.Debug("Process Remove")
-		logitem.Debug("Fetching device info")
-		devconfig, err := DeviceUpdateAdapter{update}.GetDeviceConfig(nil)
-		if err != nil {
-			// Had problem fetching device info
-			logitem.Errorf("Failed to fetch OC info: %v", err)
-			return nil
-		}
 		defer delete(s.configs, devconfig.ID)
 		if err := s.pubsubman.Remove(devconfig); err != nil {
 			logitem.Errorf("Failed to remove device from pubsubmanager: %v", err)
@@ -292,13 +288,6 @@ func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
 	}
 
 	processupdate := func() error {
-		logitem.Debug("Fetching device info")
-		devconfig, err := DeviceUpdateAdapter{update}.GetDeviceConfig(s.client)
-		if err != nil {
-			// Had problem fetching device info
-			logitem.Errorf("Failed to fetch OC info: %v", err)
-			return nil
-		}
 		logitem.Debug("Process Update")
 		if oldconfig, ok := s.configs[devconfig.ID]; ok {
 			if err := s.app.DeviceUpdate(oldconfig, devconfig); err != nil {
