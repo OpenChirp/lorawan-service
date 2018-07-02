@@ -101,7 +101,6 @@ func (ocd OCDeviceInfo) Matches(otherocd OCDeviceInfo) bool {
 
 type LorawanConfig struct {
 	DevEUI string
-	AppEUI string
 	AppKey string
 	Class  LorawanClass
 	// Confirmed downlinks
@@ -113,10 +112,9 @@ type LorawanConfig struct {
 	// ABP - AppSKey
 }
 
-func NewLorawanConfig(devEUI, appEUI, appKey, class string) LorawanConfig {
+func NewLorawanConfig(devEUI, appKey, class string) LorawanConfig {
 	return LorawanConfig{
 		DevEUI: strings.ToUpper(devEUI),
-		AppEUI: strings.ToUpper(appEUI),
 		AppKey: strings.ToUpper(appKey),
 		Class:  LorawanClassFromString(class),
 	}
@@ -126,10 +124,6 @@ func (c *LorawanConfig) SetDevEUI(devEUI string) {
 	c.DevEUI = strings.ToUpper(devEUI)
 }
 
-func (c *LorawanConfig) SetAppEUI(appEUI string) {
-	c.AppEUI = strings.ToUpper(appEUI)
-}
-
 func (c *LorawanConfig) SetAppKey(appKey string) {
 	c.AppKey = strings.ToUpper(appKey)
 }
@@ -137,7 +131,6 @@ func (c *LorawanConfig) SetAppKey(appKey string) {
 func (c LorawanConfig) Matches(otherc LorawanConfig) bool {
 	var nok bool
 	nok = nok || c.DevEUI != otherc.DevEUI
-	// nok = nok || c.AppEUI != otherc.AppEUI
 	nok = nok || c.AppKey != otherc.AppKey
 	nok = nok || c.Class != otherc.Class
 	return !nok
@@ -146,9 +139,6 @@ func (c LorawanConfig) Matches(otherc LorawanConfig) bool {
 func (c LorawanConfig) CheckParameters() error {
 	if !utils.IsValidHex(c.DevEUI, 8*8) || (len(c.DevEUI) != 16) {
 		return errors.New("Error - DevEUI must be composed of 16 hex characters")
-	}
-	if !utils.IsValidHex(c.AppEUI, 8*8) || (len(c.AppEUI) != 16) {
-		return errors.New("Error - AppEUI must be composed of 16 hex characters")
 	}
 	if !utils.IsValidHex(c.AppKey, 8*16) || (len(c.AppKey) != 32) {
 		return errors.New("Error - AppKey must have 32 hex characters")
@@ -163,7 +153,6 @@ func (c LorawanConfig) CheckParameters() error {
 func (c LorawanConfig) LogrusFields() logrus.Fields {
 	return logrus.Fields{
 		"DevEUI": c.DevEUI,
-		"AppEUI": c.AppEUI,
 		"AppKey": c.AppKey,
 		"Class":  c.Class,
 	}
@@ -175,10 +164,9 @@ type DeviceConfig struct {
 }
 
 func (d DeviceConfig) String() string {
-	return fmt.Sprintf("ID: %s, DevEUI: %s, AppEUI: %s, AppKey: %s, Name: %s, Owner: %s, Class: %v",
+	return fmt.Sprintf("ID: %s, DevEUI: %s, AppKey: %s, Name: %s, Owner: %s, Class: %v",
 		d.ID,
 		d.DevEUI,
-		d.AppEUI,
 		d.AppKey,
 		d.Name,
 		d.OwnerString(),

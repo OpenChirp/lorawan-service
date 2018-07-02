@@ -167,7 +167,6 @@ func (a *AppServer) DeviceList() ([]DeviceConfig, error) {
 		configs[i].OCDeviceInfo = decodeOCDeviceInfo(dev.Name, dev.Description)
 		configs[i].LorawanConfig = devProfLookup[dev.DeviceProfileID]
 		configs[i].LorawanConfig.SetDevEUI(dev.DevEUI)
-		// configs[i].LorawanConfig.SetAppEUI("")
 		configs[i].LorawanConfig.SetAppKey(keys.DeviceKeys.AppKey)
 
 		// Consistency check the real device profile ID and our (would-be) assigned ID
@@ -239,7 +238,6 @@ func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 		"OldOCName":  oldconfig.Name,
 		"OldOCOwner": oldconfig.OwnerString(),
 		"OldDevEUI":  oldconfig.LorawanConfig.DevEUI,
-		"OldAppEUI":  oldconfig.LorawanConfig.AppEUI,
 		"OldAppKey":  oldconfig.LorawanConfig.AppKey,
 		"OldClass":   oldconfig.LorawanConfig.Class,
 	})

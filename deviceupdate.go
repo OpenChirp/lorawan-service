@@ -18,10 +18,6 @@ func (update DeviceUpdateAdapter) GetDevEUI() string {
 	return strings.ToLower(update.Config[configDevEUI])
 }
 
-func (update DeviceUpdateAdapter) GetAppEUI() string {
-	return strings.ToLower(update.Config[configAppEUI])
-}
-
 func (update DeviceUpdateAdapter) GetAppKey() string {
 	return strings.ToLower(update.Config[configAppKey])
 }
@@ -53,7 +49,6 @@ func (update DeviceUpdateAdapter) GetDeviceConfig(c *framework.ServiceClient) (D
 	}
 
 	config.DevEUI = update.GetDevEUI()
-	config.AppEUI = update.GetAppEUI()
 	config.AppKey = update.GetAppKey()
 	config.Class = update.GetClass()
 

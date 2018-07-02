@@ -24,7 +24,6 @@ const (
 const (
 	appServerMqttPersistance = false
 	configDevEUI             = "DevEUI"
-	configAppEUI             = "AppEUI"
 	configAppKey             = "AppKey"
 	configClass              = "Class"
 )
