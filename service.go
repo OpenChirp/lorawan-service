@@ -16,13 +16,15 @@ import (
 const LorawanServiceModName = "LorawanService"
 
 type LorawanService struct {
-	AppGRPCServer string
-	AppGRPCUser   string
-	AppGRPCPass   string
-	AppID         int64
-	AppMQTTBroker string
-	AppMQTTUser   string
-	AppMQTTPass   string
+	AppGRPCServer   string
+	AppGRPCUser     string
+	AppGRPCPass     string
+	AppID           int64
+	OrganizationID  int64
+	NetworkServerID int64
+	AppMQTTBroker   string
+	AppMQTTUser     string
+	AppMQTTPass     string
 
 	OCServer     string
 	OCMQTTBroker string
@@ -103,7 +105,12 @@ func (s *LorawanService) startAppserver() error {
 
 	/* Launch LoRaWAN Service */
 	s.configs = make(map[string]DeviceConfig)
-	s.app = appserver.NewAppServer(s.AppGRPCServer, s.AppID, 1, 1, s.Log)
+	s.app = appserver.NewAppServer(
+		s.AppGRPCServer,
+		s.AppID,
+		s.OrganizationID,
+		s.NetworkServerID,
+		s.Log)
 	logitem.Debugf("Connecting to lora app server as %s:%s", s.AppGRPCUser, s.AppGRPCPass)
 	if err := s.app.Login(s.AppGRPCUser, s.AppGRPCPass); err != nil {
 		logitem.Fatalf("Failed Login to App Server: %v\n", err)

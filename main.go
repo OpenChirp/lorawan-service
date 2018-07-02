@@ -47,18 +47,20 @@ func run(ctx *cli.Context) error {
 
 	/* Startup LoRaWAN server */
 	ls := LorawanService{
-		AppGRPCServer: ctx.String("app-grpc-server"),
-		AppGRPCUser:   ctx.String("app-grpc-user"),
-		AppGRPCPass:   ctx.String("app-grpc-pass"),
-		AppID:         ctx.Int64("app-appid"),
-		AppMQTTBroker: ctx.String("app-mqtt-server"),
-		AppMQTTUser:   ctx.String("app-mqtt-user"),
-		AppMQTTPass:   ctx.String("app-mqtt-pass"),
-		OCServer:      ctx.String("framework-server"),
-		OCMQTTBroker:  ctx.String("mqtt-server"),
-		OCID:          ctx.String("service-id"),
-		OCToken:       ctx.String("service-token"),
-		Log:           log,
+		AppGRPCServer:   ctx.String("app-grpc-server"),
+		AppGRPCUser:     ctx.String("app-grpc-user"),
+		AppGRPCPass:     ctx.String("app-grpc-pass"),
+		AppID:           ctx.Int64("app-appid"),
+		OrganizationID:  ctx.Int64("app-orgid"),
+		NetworkServerID: ctx.Int64("app-netsrvid"),
+		AppMQTTBroker:   ctx.String("app-mqtt-server"),
+		AppMQTTUser:     ctx.String("app-mqtt-user"),
+		AppMQTTPass:     ctx.String("app-mqtt-pass"),
+		OCServer:        ctx.String("framework-server"),
+		OCMQTTBroker:    ctx.String("mqtt-server"),
+		OCID:            ctx.String("service-id"),
+		OCToken:         ctx.String("service-token"),
+		Log:             log,
 	}
 	log.Info("Starting LoRaWAN Service ")
 	if err := ls.Start(); err != nil {
@@ -179,8 +181,20 @@ func main() {
 		cli.Int64Flag{
 			Name:   "app-appid",
 			Usage:  "LoRa App Server Application ID",
-			Value:  0,
+			Value:  1,
 			EnvVar: "APP_APPID",
+		},
+		cli.Int64Flag{
+			Name:   "app-orgid",
+			Usage:  "LoRa App Server Organization ID",
+			Value:  1,
+			EnvVar: "APP_ORGID",
+		},
+		cli.Int64Flag{
+			Name:   "app-netsrvid",
+			Usage:  "LoRa App Server Network Server ID",
+			Value:  1,
+			EnvVar: "APP_NETSERVERID",
 		},
 	}
 	app.Run(os.Args)
