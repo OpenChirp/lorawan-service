@@ -52,12 +52,12 @@ func NewPubSubManager(oc pubsub.PubSub, app *appserver.AppServerMQTT, log *logru
 
 // topicRawtx returns the rawtx topic for the device config cfg
 func topicRawtx(cfg *DeviceConfig) string {
-	return cfg.Topic + "/" + framework.TransducerPrefix + "/" + topicSuffixRx
+	return cfg.Topic + "/" + framework.TransducerPrefix + "/" + topicSuffixTx
 }
 
 // topicRawrx returns the rawrx topic for the device config cfg
 func topicRawrx(cfg *DeviceConfig) string {
-	return cfg.Topic + "/" + framework.TransducerPrefix + "/" + topicSuffixTx
+	return cfg.Topic + "/" + framework.TransducerPrefix + "/" + topicSuffixRx
 }
 
 // topicJoinrequest returns the joinrequest topic for the device config cfg
