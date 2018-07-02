@@ -25,7 +25,8 @@ func decodeOCDeviceInfo(name, description string) OCDeviceInfo {
 	return i
 }
 
-// DeviceSync ensures that the remote server reflects our current set of configs
+// DeviceRegistrationSync ensures that the remote server reflects our current
+// set of configs
 func (a *AppServer) DeviceRegistrationSync(configs []DeviceConfig) ([]error, error) {
 	logitem := a.log.WithField("Module", DevModName)
 	logitem.Info("Syncing device configs")
@@ -134,6 +135,8 @@ func (a *AppServer) DeviceRegistrationSync(configs []DeviceConfig) ([]error, err
 	return errs, nil
 }
 
+// DeviceList fetches configs from the remote lora app server and tries to
+// marshal them into the standard DeviceConfig interface type
 func (a *AppServer) DeviceList() ([]DeviceConfig, error) {
 	logitem := a.log.WithField("Module", DevModName)
 	logitem.Debug("Getting remote device list")
@@ -158,7 +161,7 @@ func (a *AppServer) DeviceList() ([]DeviceConfig, error) {
 		}
 		keys, err := a.Device.GetKeys(context.Background(), req)
 		if err != nil {
-			return nil, errors.New(fmt.Sprintf("Failed to fetch keys for device with DevEUI=%s: %v", dev.DevEUI, err))
+			return nil, fmt.Errorf("Failed to fetch keys for device with DevEUI=%s: %v", dev.DevEUI, err)
 		}
 
 		configs[i].OCDeviceInfo = decodeOCDeviceInfo(dev.Name, dev.Description)
@@ -169,14 +172,14 @@ func (a *AppServer) DeviceList() ([]DeviceConfig, error) {
 
 		// Consistency check the real device profile ID and our (would-be) assigned ID
 		if dev.GetDeviceProfileID() != a.devProfileFindRef(configs[i].LorawanConfig) {
-			return nil, errors.New(fmt.Sprintf("Remote device found with uncached device profile: DevEUI=%s", dev.GetDevEUI()))
+			return nil, fmt.Errorf("Remote device found with uncached device profile: DevEUI=%s", dev.GetDevEUI())
 		}
 	}
 
 	return configs, nil
 }
 
-// could conflict
+// DeviceRegister registers the config on the remote lora app server
 func (a *AppServer) DeviceRegister(config DeviceConfig) error {
 	logitem := a.log.WithField("Module", DevModName).WithFields(config.LogrusFields())
 
@@ -227,8 +230,8 @@ func (a *AppServer) DeviceRegister(config DeviceConfig) error {
 	return err
 }
 
-// DeviceUpdate changes the
-// could conflict
+// DeviceUpdate tries to update the associated device config on the remote
+// lora app server with as little interruption to the lorawan session as possible
 func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 	logitem := a.log.WithField("Module", DevModName)
 	logitem = logitem.WithFields(logrus.Fields{
@@ -386,7 +389,7 @@ func (a *AppServer) DeviceUpdate(oldconfig, newconfig DeviceConfig) error {
 }
 
 // DeviceDeregister removes a device and any dependent device profiles
-// from the remote app server
+// from the remote lora app server
 // Possible errors can stem from the device not being registered on the
 // remote app server OR from device profiles being out of sync (should be fatal)
 func (a *AppServer) DeviceDeregister(config DeviceConfig) error {

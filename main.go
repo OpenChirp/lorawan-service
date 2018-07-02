@@ -179,7 +179,7 @@ func main() {
 		},
 		cli.Int64Flag{
 			Name:   "app-appid",
-			Usage:  "LoRa App Server Appication ID",
+			Usage:  "LoRa App Server Application ID",
 			Value:  0,
 			EnvVar: "APP_APPID",
 		},
