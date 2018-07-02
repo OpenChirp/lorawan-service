@@ -15,11 +15,11 @@ type DeviceUpdateAdapter struct {
 }
 
 func (update DeviceUpdateAdapter) GetDevEUI() string {
-	return strings.ToLower(update.Config[configDevEUI])
+	return strings.ToUpper(update.Config[configDevEUI])
 }
 
 func (update DeviceUpdateAdapter) GetAppKey() string {
-	return strings.ToLower(update.Config[configAppKey])
+	return strings.ToUpper(update.Config[configAppKey])
 }
 
 func (update DeviceUpdateAdapter) GetClass() LorawanClass {
@@ -48,8 +48,8 @@ func (update DeviceUpdateAdapter) GetDeviceConfig(c *framework.ServiceClient) (D
 		config.OwnerEmail = info.Owner.Email
 	}
 
-	config.DevEUI = update.GetDevEUI()
-	config.AppKey = update.GetAppKey()
+	config.SetDevEUI(update.GetDevEUI())
+	config.SetAppKey(update.GetAppKey())
 	config.Class = update.GetClass()
 
 	return config, nil

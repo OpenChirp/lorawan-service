@@ -112,14 +112,6 @@ type LorawanConfig struct {
 	// ABP - AppSKey
 }
 
-func NewLorawanConfig(devEUI, appKey, class string) LorawanConfig {
-	return LorawanConfig{
-		DevEUI: strings.ToUpper(devEUI),
-		AppKey: strings.ToUpper(appKey),
-		Class:  LorawanClassFromString(class),
-	}
-}
-
 func (c *LorawanConfig) SetDevEUI(devEUI string) {
 	c.DevEUI = strings.ToUpper(devEUI)
 }
