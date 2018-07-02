@@ -47,6 +47,10 @@ type LorawanService struct {
 	runtimewait sync.WaitGroup
 }
 
+func statusErrMsg(err error) string {
+	return fmt.Sprintf("Error - %v")
+}
+
 func makelogitem(log *logrus.Logger, config DeviceConfig) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
 		"Module":  LorawanServiceModName,
@@ -190,7 +194,7 @@ func (s *LorawanService) syncConfigs() error {
 		logitem := makelogitem(s.Log, devConfig)
 		if e != nil {
 			logitem.Infof("Failed to add or update config: %v", e)
-			if err := s.client.SetDeviceStatus(devConfig.ID, e); err != nil {
+			if err := s.client.SetDeviceStatus(devConfig.ID, statusErrMsg(e)); err != nil {
 				logitem.Errorf("Failed to post device status: %v", err)
 			}
 		} else {
@@ -264,7 +268,8 @@ func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
 		logitem.Info("Process Add")
 		if err := s.app.DeviceRegister(devconfig); err != nil {
 			logitem.Infof("Failed to add device config: %v", err)
-			if e := s.client.SetDeviceStatus(devconfig.ID, err); e != nil {
+			errMsg := statusErrMsg(err)
+			if e := s.client.SetDeviceStatus(devconfig.ID, errMsg); e != nil {
 				logitem.Errorf("Failed to post device status: %v", e)
 			}
 			return nil
@@ -306,7 +311,8 @@ func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
 				}
 				delete(s.configs, devconfig.ID)
 
-				if e := s.client.SetDeviceStatus(devconfig.ID, err); e != nil {
+				errMsg := statusErrMsg(err)
+				if e := s.client.SetDeviceStatus(devconfig.ID, errMsg); e != nil {
 					logitem.Errorf("Failed to post device status: %v", e)
 				}
 				return nil
