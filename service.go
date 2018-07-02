@@ -48,7 +48,7 @@ type LorawanService struct {
 }
 
 func statusErrMsg(err error) string {
-	return fmt.Sprintf("Error - %v")
+	return fmt.Sprintf("Error - %v", err)
 }
 
 func makelogitem(log *logrus.Logger, config DeviceConfig) *logrus.Entry {
