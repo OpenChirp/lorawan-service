@@ -276,10 +276,10 @@ func (s *LorawanService) processUpdate(update framework.DeviceUpdate) error {
 	processremove := func() error {
 		logitem.Info("Process Remove")
 		defer delete(s.configs, devconfig.ID)
-		if err := s.pubsubman.Remove(devconfig); err != nil {
+		oldconfig := s.configs[devconfig.ID]
+		if err := s.pubsubman.Remove(oldconfig); err != nil {
 			logitem.Errorf("Failed to remove device from pubsubmanager: %v", err)
 		}
-		oldconfig := s.configs[devconfig.ID]
 		if err := s.app.DeviceDeregister(oldconfig); err != nil {
 			logitem.Infof("Failed to deregister device config: %v", err)
 			return nil
