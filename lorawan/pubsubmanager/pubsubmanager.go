@@ -33,14 +33,14 @@ type PubSubManager struct {
 	cfgFromRawtxTopic sync.Map // rawtxTopic --> *DeviceConfig
 	cfgFromDeveui     sync.Map // DevEUI --> *DeviceConfig
 	// deveui
-	log *logrus.Logger
+	log *logrus.Entry
 }
 
 func NewPubSubManager(oc pubsub.PubSub, app *appserver.AppServerMQTT, log *logrus.Logger) *PubSubManager {
 	m := new(PubSubManager)
 	m.oc = oc
 	m.app = app
-	m.log = log
+	m.log = log.WithField("Module", PubSubManagerModName)
 
 	/* Goroutines end when app.GetChanRX() and app.GetChanjoin() channels close */
 	go m.rxhandler()
@@ -143,8 +143,7 @@ func (m *PubSubManager) sanityCheckDeviceConfig(c DeviceConfig) error {
 }
 
 func (m *PubSubManager) Add(c DeviceConfig) error {
-	logitem := m.log.WithField("Module", PubSubManagerModName)
-	logitem = logitem.WithFields(c.OCDeviceInfo.LogrusFields())
+	logitem := m.log.WithFields(c.OCDeviceInfo.LogrusFields())
 
 	logitem.Debugf("Adding device")
 
@@ -167,8 +166,7 @@ func (m *PubSubManager) Add(c DeviceConfig) error {
 }
 
 func (m *PubSubManager) Remove(c DeviceConfig) error {
-	logitem := m.log.WithField("Module", PubSubManagerModName)
-	logitem = logitem.WithFields(c.OCDeviceInfo.LogrusFields())
+	logitem := m.log.WithFields(c.OCDeviceInfo.LogrusFields())
 
 	logitem.Debug("Removing device")
 
@@ -183,8 +181,7 @@ func (m *PubSubManager) Remove(c DeviceConfig) error {
 }
 
 func (m *PubSubManager) Update(oldconfig, newconfig DeviceConfig) error {
-	logitem := m.log.WithField("Module", PubSubManagerModName)
-	logitem = logitem.WithFields(logrus.Fields{
+	logitem := m.log.WithFields(logrus.Fields{
 		"OldOCID":    oldconfig.ID,
 		"OldOCName":  oldconfig.Name,
 		"OldOCOwner": oldconfig.OwnerString(),
@@ -208,8 +205,7 @@ func (m *PubSubManager) Update(oldconfig, newconfig DeviceConfig) error {
 }
 
 func (m *PubSubManager) DebugDump() {
-	logitem := m.log.WithField("Module", PubSubManagerModName)
-	logitem = logitem.WithField("Debug", "dump")
+	logitem := m.log.WithField("Debug", "dump")
 
 	logitem.Debugf("# Dumping ConfigFromDevEUI")
 	m.cfgFromDeveui.Range(func(key, value interface{}) bool {
