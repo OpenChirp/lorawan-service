@@ -99,6 +99,12 @@ func (ocd OCDeviceInfo) Matches(otherocd OCDeviceInfo) bool {
 	return ocd == otherocd
 }
 
+// LorawanConfigConvertCase converts input to lowercase.
+// We use lowercase because the lora app server uses lowercase on MQTT
+func LorawanConfigConvertCase(input string) string {
+	return strings.ToLower(input)
+}
+
 type LorawanConfig struct {
 	DevEUI string
 	AppKey string
@@ -112,12 +118,14 @@ type LorawanConfig struct {
 	// ABP - AppSKey
 }
 
+// SetDevEUI sets the DevEUI field after uniformly converting it's case
 func (c *LorawanConfig) SetDevEUI(devEUI string) {
-	c.DevEUI = strings.ToUpper(devEUI)
+	c.DevEUI = LorawanConfigConvertCase(devEUI)
 }
 
+// SetAppKey sets the AppKey field after uniformly converting it's case
 func (c *LorawanConfig) SetAppKey(appKey string) {
-	c.AppKey = strings.ToUpper(appKey)
+	c.AppKey = LorawanConfigConvertCase(appKey)
 }
 
 func (c LorawanConfig) Matches(otherc LorawanConfig) bool {

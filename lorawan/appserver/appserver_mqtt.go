@@ -203,11 +203,7 @@ func (am *AppServerMQTT) onRx(topic string, payload []byte) {
 		logitem.Error("Failed to decode RX packet")
 		return
 	}
-	am.rx <- DeviceMessageData{
-		DevEUI: fmt.Sprint(pkt.DevEUI),
-		FPort:  pkt.FPort,
-		Data:   pkt.Data,
-	}
+	am.rx <- NewDeviceMessageData(pkt.DevEUI.String(), pkt.Data, false, pkt.FPort)
 }
 
 func (am *AppServerMQTT) onJoin(topic string, payload []byte) {
@@ -224,9 +220,7 @@ func (am *AppServerMQTT) onJoin(topic string, payload []byte) {
 		return
 	}
 
-	am.join <- DeviceMessageJoin{
-		DevEUI: fmt.Sprint(pkt.DevEUI),
-	}
+	am.join <- NewDeviceMessageJoin(pkt.DevEUI.String())
 }
 
 func (am *AppServerMQTT) onAck(topic string, payload []byte) {
@@ -244,9 +238,7 @@ func (am *AppServerMQTT) onAck(topic string, payload []byte) {
 		logitem.Error("Failed to decode Ack packet")
 		return
 	}
-	am.ack <- DeviceMessageAck{
-		DevEUI: fmt.Sprint(pkt.DevEUI),
-	}
+	am.ack <- NewDeviceMessageAck(pkt.DevEUI.String())
 }
 
 func (am *AppServerMQTT) onError(topic string, payload []byte) {

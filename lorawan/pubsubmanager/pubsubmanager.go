@@ -134,12 +134,7 @@ func (m *PubSubManager) txhandler(topic string, payload []byte) {
 			return
 		}
 		// ship it
-		m.app.GetChanTX() <- DeviceMessageData{
-			DevEUI:    cfg.DevEUI,
-			FPort:     defaultFport,
-			Confirmed: defaultConfirmed,
-			Data:      data,
-		}
+		m.app.GetChanTX() <- NewDeviceMessageData(cfg.DevEUI, data, defaultConfirmed, defaultFport)
 	}
 }
 
