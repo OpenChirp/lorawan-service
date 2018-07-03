@@ -75,10 +75,12 @@ func (m *PubSubManager) rxhandler() {
 		if ocinfo, ok := m.cfgFromDeveui.Load(msg.DevEUI); ok {
 			// Publish to oc device
 			cfg := ocinfo.(*DeviceConfig)
+			logitem := m.log.WithFields(cfg.OCDeviceInfo.LogrusFields())
 			topic := topicRawrx(cfg)
+			logitem.Debugf("Publishing rx data to %s", topic)
 			msgData := base64.StdEncoding.EncodeToString(msg.Data)
 			if err := m.oc.Publish(topic, msgData); err != nil {
-				m.log.Fatalf("Failed to publish to %s: %v", topic, err)
+				logitem.Errorf("Failed to publish to %s: %v", topic, err)
 				// FIXME: Need to propagate fatal error
 			}
 		}
@@ -90,10 +92,12 @@ func (m *PubSubManager) joinhandler() {
 		if ocinfo, ok := m.cfgFromDeveui.Load(msg.DevEUI); ok {
 			// Publish to oc device
 			cfg := ocinfo.(*DeviceConfig)
+			logitem := m.log.WithFields(cfg.OCDeviceInfo.LogrusFields())
 			topic := topicJoinrequest(cfg)
+			logitem.Debugf("Publishing joinrequest to %s", topic)
 			msgData := "1"
 			if err := m.oc.Publish(topic, msgData); err != nil {
-				m.log.Fatalf("Failed to publish to %s: %v", topic, err)
+				logitem.Errorf("Failed to publish to %s: %v", topic, err)
 				// FIXME: Need to propagate fatal error
 			}
 		}
@@ -105,10 +109,12 @@ func (m *PubSubManager) txackhandler() {
 		if ocinfo, ok := m.cfgFromDeveui.Load(msg.DevEUI); ok {
 			// Publish to oc device
 			cfg := ocinfo.(*DeviceConfig)
+			logitem := m.log.WithFields(cfg.OCDeviceInfo.LogrusFields())
 			topic := topicTxAck(cfg)
+			logitem.Debugf("Publishing txack to %s", topic)
 			msgData := "1"
 			if err := m.oc.Publish(topic, msgData); err != nil {
-				m.log.Fatalf("Failed to publish to %s: %v", topic, err)
+				logitem.Errorf("Failed to publish to %s: %v", topic, err)
 				// FIXME: Need to propagate fatal error
 			}
 		}
@@ -119,10 +125,12 @@ func (m *PubSubManager) txhandler(topic string, payload []byte) {
 	m.app.GetChanAck()
 	if ocinfo, ok := m.cfgFromRawtxTopic.Load(topic); ok {
 		cfg := ocinfo.(*DeviceConfig)
+		logitem := m.log.WithFields(cfg.OCDeviceInfo.LogrusFields())
+		logitem.Debugf("Pushing tx data from %s", topic)
 		// decode it
 		data, err := base64.StdEncoding.DecodeString(string(payload))
 		if err != nil {
-			m.log.Fatalf("Failed to decode base64 from %s: %v", topic, err)
+			logitem.Warnf("Failed to decode base64 from %s: %v", topic, err)
 			return
 		}
 		// ship it
