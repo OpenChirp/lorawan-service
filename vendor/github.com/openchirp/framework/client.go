@@ -8,18 +8,21 @@ package framework
 
 import (
 	"log"
-	"math/big"
-
-	CRAND "crypto/rand"
 
 	MQTT "github.com/eclipse/paho.mqtt.golang"
+	"github.com/openchirp/framework/pubsub"
 	"github.com/openchirp/framework/rest"
 )
 
+// MQTTBridgeClient sets whether the MQTT client will identify itself as a
+// bridge to the broker
+var MQTTBridgeClient = false
+
 const (
-	mqttAutoReconnect      = true
-	mqttQoS           byte = 2
-	mqttRetained           = false
+	mqttAutoReconnect        = true
+	mqttQoS             byte = 2
+	mqttRetained             = false
+	mqttProtocolVersion uint = 4
 )
 
 // ClientTopicHandler is a function prototype for a subscribed topic callback
@@ -35,23 +38,14 @@ type Client struct {
 	mqtt        MQTT.Client
 }
 
-// genClientID generates a random client id for mqtt
-func (c Client) genClientID() string {
-	r, err := CRAND.Int(CRAND.Reader, new(big.Int).SetInt64(100000))
-	if err != nil {
-		log.Fatal("Couldn't generate a random number for MQTT client ID")
-	}
-	return "client" + r.String()
-}
-
 // setAuth sets basic client authentication parameters
 func (c *Client) setAuth(id, token string) {
 	c.id = id
 	c.token = token
 }
 
-func (c *Client) startREST(frameworkuri string) error {
-	c.host = rest.NewHost(frameworkuri)
+func (c *Client) startREST(frameworkURI string) error {
+	c.host = rest.NewHost(frameworkURI)
 	if err := c.host.Login(c.id, c.token); err != nil {
 		return err
 	}
@@ -110,10 +104,21 @@ func (c *Client) setWill(topic string, payload []byte) {
 		                 be used when the connection is lost, even if disabled
 		                 the ConnectionLostHandler is still called
 */
-func (c *Client) startMQTT(brokeruri string) error {
+func (c *Client) startMQTT(brokerURI string) error {
 	/* Connect the MQTT connection */
-	opts := MQTT.NewClientOptions().AddBroker(brokeruri)
-	opts.SetClientID(c.genClientID())
+	opts := MQTT.NewClientOptions().AddBroker(brokerURI)
+
+	var prefix = "client"
+	opts.SetProtocolVersion(mqttProtocolVersion)
+	if MQTTBridgeClient {
+		prefix = "bridge"
+		opts.SetProtocolVersion(mqttProtocolVersion | 0x80)
+	}
+	clientID, err := pubsub.GenMQTTClientID(prefix)
+	if err != nil {
+		log.Fatal(err)
+	}
+	opts.SetClientID(clientID)
 	opts.SetUsername(c.id).SetPassword(c.token)
 	opts.SetAutoReconnect(mqttAutoReconnect)
 	if c.willTopic != "" {
@@ -129,17 +134,17 @@ func (c *Client) startMQTT(brokeruri string) error {
 }
 
 // startClient sets auth, starts REST, and starts MQTT
-func (c *Client) startClient(frameworkuri, brokeruri, id, token string) error {
+func (c *Client) startClient(frameworkURI, brokerURI, id, token string) error {
 	/* Setup basic client parameters */
 	c.setAuth(id, token)
 
 	/* Setup the REST interface */
-	err := c.startREST(frameworkuri)
+	err := c.startREST(frameworkURI)
 	if err != nil {
 		return err
 	}
 
-	return c.startMQTT(brokeruri)
+	return c.startMQTT(brokerURI)
 }
 
 // stopService shuts down a started client

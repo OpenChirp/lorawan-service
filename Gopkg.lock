@@ -2,42 +2,53 @@
 
 
 [[projects]]
+  digest = "1:c0b8f3f464666fb0ba3667c44a8bce17d97a8f178c15c75e4a17e0b677e41178"
   name = "github.com/brocaar/lora-app-server"
   packages = ["api"]
+  pruneopts = "UT"
   revision = "7cd27c27c88d9d7b068121acbfc5f07ea46b0513"
   version = "v1.0.1"
 
 [[projects]]
   branch = "master"
+  digest = "1:f412e47839be0a1f44de51560125edd9a1374761c7ec5efb71d0e8bc683e9272"
   name = "github.com/brocaar/lorawan"
   packages = ["."]
+  pruneopts = "UT"
   revision = "f359b50e77d1f421e9201846f425986017ffd851"
 
 [[projects]]
+  digest = "1:db8f5e0571cd25d90cc61d893cd2870b2eea7761bc93753c7e99272938c78e07"
   name = "github.com/coreos/go-systemd"
   packages = [
     "daemon",
-    "journal"
+    "journal",
   ]
+  pruneopts = "UT"
   revision = "39ca1b05acc7ad1220e09f133283b8859a8b71ab"
   version = "v17"
 
 [[projects]]
+  digest = "1:4c61673d6ba5cb8d910c62f8174a5ace21be59e80fff66d9de38d931944fa2a1"
   name = "github.com/eclipse/paho.mqtt.golang"
   packages = [
     ".",
-    "packets"
+    "packets",
   ]
+  pruneopts = "UT"
   revision = "36d01c2b4cbeb3d2a12063e4880ce30800af9560"
   version = "v1.1.1"
 
 [[projects]]
   branch = "master"
+  digest = "1:3fb07f8e222402962fa190eb060608b34eddfb64562a18e2167df2de0ece85d8"
   name = "github.com/golang/groupcache"
   packages = ["lru"]
+  pruneopts = "UT"
   revision = "24b0969c4cb722950103eed87108c8d291a8df00"
 
 [[projects]]
+  digest = "1:5128d4076311c01eed979c9096860f565b7772c806f426131b37240bbc00ccc8"
   name = "github.com/golang/protobuf"
   packages = [
     "jsonpb",
@@ -47,66 +58,82 @@
     "ptypes/any",
     "ptypes/duration",
     "ptypes/struct",
-    "ptypes/timestamp"
+    "ptypes/timestamp",
   ]
+  pruneopts = "UT"
   revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
   version = "v1.1.0"
 
 [[projects]]
+  digest = "1:3615cb553ccca07ee09150b0ed02e0337cccaa7cb0f1cbf150342d725d5e5107"
   name = "github.com/grpc-ecosystem/grpc-gateway"
   packages = [
     "runtime",
     "runtime/internal",
-    "utilities"
+    "utilities",
   ]
+  pruneopts = "UT"
   revision = "74ba57806b9706edc6e2c9e5854ced57a9cd5ba0"
   version = "v1.4.0"
 
 [[projects]]
   branch = "master"
+  digest = "1:489536052bc7744088c06ea72c3167a1adccfa206056489700daecafdad26a26"
   name = "github.com/jacobsa/crypto"
   packages = [
     "cmac",
-    "common"
+    "common",
   ]
+  pruneopts = "UT"
   revision = "c73681c634de898c869684602cf0c0d2ce938c4d"
 
 [[projects]]
   branch = "master"
+  digest = "1:911e41395fd4b0b1fafb61a60af5416c74d684f1beebe95452835299162b5790"
   name = "github.com/openchirp/framework"
   packages = [
     ".",
     "pubsub",
-    "rest"
+    "rest",
   ]
-  revision = "6c8faff4178c86d76aa1db039d666dc4bec00924"
+  pruneopts = "UT"
+  revision = "7da33e9f9a8bcac7c82c5c5e3f2e2d6cdd017d26"
 
 [[projects]]
+  digest = "1:9e9193aa51197513b3abcb108970d831fbcf40ef96aa845c4f03276e1fa316d2"
   name = "github.com/sirupsen/logrus"
   packages = ["."]
+  pruneopts = "UT"
   revision = "c155da19408a8799da419ed3eeb0cb5db0ad5dbc"
   version = "v1.0.5"
 
 [[projects]]
+  digest = "1:b24d38b282bacf9791408a080f606370efa3d364e4b5fd9ba0f7b87786d3b679"
   name = "github.com/urfave/cli"
   packages = ["."]
+  pruneopts = "UT"
   revision = "cfb38830724cc34fedffe9a2a29fb54fa9169cd1"
   version = "v1.20.0"
 
 [[projects]]
   branch = "master"
+  digest = "1:f11d7335245ee25607d939cd530b63526304aa183f2041837fa448265be9dd87"
   name = "github.com/wercker/journalhook"
   packages = ["."]
+  pruneopts = "UT"
   revision = "5d0a5ae867b354cbbbd2a9ab8d66b4f96cfaa741"
 
 [[projects]]
   branch = "master"
+  digest = "1:3f3a05ae0b95893d90b9b3b5afdb79a9b3d96e4e36e099d841ae602e4aca0da8"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
+  pruneopts = "UT"
   revision = "ab813273cd59e1333f7ae7bff5d027d4aadf528c"
 
 [[projects]]
   branch = "master"
+  digest = "1:2632a1d2f2da2d9f92d30d566a3e60660657f153cc2bb756b55f1a5093ea8091"
   name = "golang.org/x/net"
   packages = [
     "context",
@@ -118,20 +145,24 @@
     "internal/timeseries",
     "proxy",
     "trace",
-    "websocket"
+    "websocket",
   ]
+  pruneopts = "UT"
   revision = "9ef9f5bb98a1fdc41f8cf6c250a4404b4085e389"
 
 [[projects]]
   branch = "master"
+  digest = "1:387e4c3f05f75f36c46b626fd39044679542dbcf3fdc105df44552ca27a06889"
   name = "golang.org/x/sys"
   packages = [
     "unix",
-    "windows"
+    "windows",
   ]
+  pruneopts = "UT"
   revision = "c11f84a56e43e20a78cee75a7c034031ecf57d1f"
 
 [[projects]]
+  digest = "1:7509ba4347d1f8de6ae9be8818b0cd1abc3deeffe28aeaf4be6d4b6b5178d9ca"
   name = "golang.org/x/text"
   packages = [
     "collate",
@@ -147,21 +178,25 @@
     "unicode/bidi",
     "unicode/cldr",
     "unicode/norm",
-    "unicode/rangetable"
+    "unicode/rangetable",
   ]
+  pruneopts = "UT"
   revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
   version = "v0.3.0"
 
 [[projects]]
   branch = "master"
+  digest = "1:a1cc40bd6be43a3956c0bc0b3ed1b8d580344f785318225529c5293100bc8a60"
   name = "google.golang.org/genproto"
   packages = [
     "googleapis/api/annotations",
-    "googleapis/rpc/status"
+    "googleapis/rpc/status",
   ]
+  pruneopts = "UT"
   revision = "11a468237815f3a3ddf9f7c6e8b6b3b382a24d15"
 
 [[projects]]
+  digest = "1:572281062e546226c8ca806e884fb3da0f5bff51de6765499b172f4251d3f05a"
   name = "google.golang.org/grpc"
   packages = [
     ".",
@@ -185,14 +220,28 @@
     "stats",
     "status",
     "tap",
-    "transport"
+    "transport",
   ]
+  pruneopts = "UT"
   revision = "7cea4cc846bcf00cbb27595b07da5de875ef7de9"
   version = "v1.9.1"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "73537dea507b2e4483dadb03285d1f9df9eeb3375801b451fc5e7d5bdb82ed31"
+  input-imports = [
+    "github.com/brocaar/lora-app-server/api",
+    "github.com/brocaar/lorawan",
+    "github.com/coreos/go-systemd/daemon",
+    "github.com/openchirp/framework",
+    "github.com/openchirp/framework/pubsub",
+    "github.com/sirupsen/logrus",
+    "github.com/urfave/cli",
+    "github.com/wercker/journalhook",
+    "golang.org/x/net/context",
+    "google.golang.org/grpc",
+    "google.golang.org/grpc/codes",
+    "google.golang.org/grpc/credentials",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1
