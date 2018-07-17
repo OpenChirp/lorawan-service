@@ -131,7 +131,7 @@ func (am *AppServerMQTT) onTx(msg DeviceMessageData) {
 		Confirmed     bool            `json:"confirmed"`
 		FPort         uint8           `json:"fPort"`
 		Data          []byte          `json:"data"`
-		Object        json.RawMessage `json:"object"`
+		Object        json.RawMessage `json:"object,omitempty"`
 	}
 
 	if err := pkt.DevEUI.UnmarshalText([]byte(msg.DevEUI)); err != nil {
