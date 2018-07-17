@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/openchirp/framework"
-
 	"github.com/openchirp/framework/pubsub"
 	"github.com/openchirp/lorawan-service/lorawan/appserver"
 	. "github.com/openchirp/lorawan-service/lorawan/deviceconfig"
@@ -52,22 +50,22 @@ func NewPubSubManager(oc pubsub.PubSub, app *appserver.AppServerMQTT, log *logru
 
 // topicRawtx returns the rawtx topic for the device config cfg
 func topicRawtx(cfg *DeviceConfig) string {
-	return cfg.Topic + "/" + framework.TransducerPrefix + "/" + topicSuffixTx
+	return cfg.Topic + "/" + topicSuffixTx
 }
 
 // topicRawrx returns the rawrx topic for the device config cfg
 func topicRawrx(cfg *DeviceConfig) string {
-	return cfg.Topic + "/" + framework.TransducerPrefix + "/" + topicSuffixRx
+	return cfg.Topic + "/" + topicSuffixRx
 }
 
 // topicJoinrequest returns the joinrequest topic for the device config cfg
 func topicJoinrequest(cfg *DeviceConfig) string {
-	return cfg.Topic + "/" + framework.TransducerPrefix + "/" + topicSuffixJoin
+	return cfg.Topic + "/" + topicSuffixJoin
 }
 
 // topicTxAck returns the acknowledge topic for the device config cfg
 func topicTxAck(cfg *DeviceConfig) string {
-	return cfg.Topic + "/" + framework.TransducerPrefix + "/" + topicSuffixTxAck
+	return cfg.Topic + "/" + topicSuffixTxAck
 }
 
 func (m *PubSubManager) rxhandler() {
