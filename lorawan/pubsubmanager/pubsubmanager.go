@@ -21,7 +21,7 @@ const (
 	topicSuffixTxAck = "txack"
 )
 const (
-	defaultFport     = 0
+	defaultFport     = 2
 	defaultConfirmed = false
 )
 
