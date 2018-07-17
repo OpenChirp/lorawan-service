@@ -122,7 +122,6 @@ func (m *PubSubManager) txackhandler() {
 }
 
 func (m *PubSubManager) txhandler(topic string, payload []byte) {
-	m.app.GetChanAck()
 	if ocinfo, ok := m.cfgFromRawtxTopic.Load(topic); ok {
 		cfg := ocinfo.(*DeviceConfig)
 		logitem := m.log.WithFields(cfg.OCDeviceInfo.LogrusFields())
