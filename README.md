@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/OpenChirp/lorawan-service.svg?branch=master)](https://travis-ci.org/OpenChirp/lorawan-service)
+
 # LoRaWAN Service
 This is the OpenChirp service that manages the synchronization to Brocaars' lora-app-server
 for LoRaWAN clients.
