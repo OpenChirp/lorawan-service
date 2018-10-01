@@ -192,7 +192,7 @@ func (a *AppServer) GetUsers() {
 	if err != nil {
 		log.Fatalf("Failed to get list of users: %v", err)
 	}
-	fmt.Printf("Total Users = %v\n", users.GetTotalCount)
+	fmt.Printf("Total Users = %v\n", users.GetTotalCount())
 	fmt.Printf("Results = %v\n", users.GetResult())
 	for _, u := range users.GetResult() {
 		fmt.Printf("Username: %s\n", u.Username)
